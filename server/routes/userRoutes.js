@@ -5,6 +5,10 @@ const { authMiddleware, requireAdmin } = require('../middleware/authMiddleware')
 
 router.post('/login', userController.loginUser);
 router.post('/register', authMiddleware, requireAdmin, userController.registerUser);
-router.get('/', authMiddleware, userController.getAllUsers);
+router.get('/', authMiddleware, requireAdmin, userController.getAllUsers);
+router.get('/clients', authMiddleware, userController.getClientUsers);
+router.get('/:id', authMiddleware, requireAdmin, userController.getUserById);
+router.put('/:id', authMiddleware, requireAdmin, userController.updateUser);
+router.delete('/:id', authMiddleware, requireAdmin, userController.deleteUser);
 
 module.exports = router;

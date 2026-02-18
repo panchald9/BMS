@@ -28,18 +28,31 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const ensureDefaultAdmin = async () => {
-  const existingAdmin = await userModel.findAnyAdmin();
-  if (existingAdmin) {
+  const adminName = process.env.DEFAULT_ADMIN_NAME || 'admin';
+  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Depo@2026';
+  const adminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'admin@billing.com').toLowerCase();
+  const existingByEmail = await userModel.findUserByEmail(adminEmail);
+  if (existingByEmail) {
+    const passwordMatches = await bcrypt.compare(adminPassword, existingByEmail.password);
+    if (!passwordMatches) {
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      await userModel.updateUserLoginById(existingByEmail.id, adminEmail, hashedPassword);
+      console.log(`Default admin password reset for: ${adminEmail}`);
+    }
     return;
   }
 
-  const adminName = process.env.DEFAULT_ADMIN_NAME || 'admin';
-  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Depo@2026';
+  const existingAdmin = await userModel.findAnyAdmin();
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
-  const adminemail = process.env.DEFAULT_ADMIN_EMAIL || null;
+  if (existingAdmin) {
+    await userModel.updateUserLoginById(existingAdmin.id, adminEmail, hashedPassword);
+    console.log(`Existing admin updated with default email: ${adminEmail}`);
+    return;
+  }
+
   await userModel.createUser({
     name: adminName,
-    email: adminemail,
+    email: adminEmail,
     password: hashedPassword,
     phone: process.env.DEFAULT_ADMIN_PHONE || '9067463790',
     worktype: process.env.DEFAULT_ADMIN_WORKTYPE || 'all',
@@ -47,7 +60,7 @@ const ensureDefaultAdmin = async () => {
     rate: Number(process.env.DEFAULT_ADMIN_RATE || 0)
   });
 
-  console.log(`Default admin created: ${adminName}`);
+  console.log(`Default admin created: ${adminEmail}`);
 };
 
 const startServer = async () => {

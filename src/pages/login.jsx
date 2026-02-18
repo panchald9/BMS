@@ -12,23 +12,48 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = useMemo(() => {
     return email.trim().length > 0 && password.trim().length > 0;
   }, [email, password]);
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
 
-    // Mockup-only auth
-    // Demo admin login: admin@demo.com / admin123
-    if (email.trim().toLowerCase() === "admin@demo.com" && password === "admin123") {
+    try {
+      const response = await fetch("/api/users/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Login failed");
+      }
+
+      if (data?.token) {
+        localStorage.setItem("authToken", data.token);
+      }
+      if (data?.user) {
+        localStorage.setItem("authUser", JSON.stringify(data.user));
+      }
+
       setLocation("/dashboard");
       return;
+    } catch (err) {
+      setError(err.message || "Invalid email or password");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setError("Invalid email or password (demo: admin@demo.com / admin123)");
   }
 
   return (
@@ -128,8 +153,13 @@ export default function LoginPage() {
                 </div>
               ) : null}
 
-              <Button type="submit" className="h-11 w-full" disabled={!canSubmit} data-testid="button-login">
-                Sign in
+              <Button
+                type="submit"
+                className="h-11 w-full"
+                disabled={!canSubmit || isSubmitting}
+                data-testid="button-login"
+              >
+                {isSubmitting ? "Signing in..." : "Sign in"}
               </Button>
             </form>
           </Card>

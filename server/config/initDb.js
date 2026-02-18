@@ -1,6 +1,11 @@
 const pool = require('./db');
 
 const initDb = async () => {
+  await pool.query(` 
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS agent_rates JSONB;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS banks (
       id SERIAL PRIMARY KEY,
@@ -67,3 +72,4 @@ const initDb = async () => {
 };
 
 module.exports = initDb;
+

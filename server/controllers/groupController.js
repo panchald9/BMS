@@ -23,12 +23,12 @@ exports.getGroupById = async (req, res) => {
 
 exports.createGroup = async (req, res) => {
   try {
-    const { name, type, owner } = req.body || {};
+    const { name, type, owner,same_rate } = req.body || {};
     if (!name || !owner) {
       return res.status(400).json({ message: 'name and owner are required' });
     }
 
-    const group = await groupModel.createGroup({ name, type, owner });
+    const group = await groupModel.createGroup({ name, type, owner,same_rate });
     return res.status(201).json(group);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -59,6 +59,18 @@ exports.deleteGroup = async (req, res) => {
       return res.status(404).json({ message: 'Group not found' });
     }
     return res.json({ message: 'Group deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getGroupFullData = async (req, res) => {
+  try {
+    const group = await groupModel.getGroupFullData(req.params.id);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    return res.json(group);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
