@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 
 import AppSidebar from "../components/AppSidebar"
-import { Badge } from "../components/ui/badge"
+import { Badge } from "../components/ui/Badge"
 import { Button } from "../components/ui/button"
 import { Card } from "../components/ui/card"
 import { Input } from "../components/ui/input"
