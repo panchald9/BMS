@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Building2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
-import { Badge } from "../components/ui/badge";
+import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
