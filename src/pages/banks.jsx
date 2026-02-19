@@ -4,10 +4,10 @@ import { Building2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
-import { Card } from "../components/ui/card";
+import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Separator } from "../components/ui/separator";
+import { Separator } from "../components/ui/Separator";
 import { createBank, deleteBank, getBanks, updateBank } from "../lib/api";
 
 export default function BanksPage() {

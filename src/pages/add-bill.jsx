@@ -13,9 +13,9 @@ import {
 } from "lucide-react"
 
 import AppSidebar from "../components/app-sidebar"
-import { Badge } from "../components/ui/badge"
+import { Badge } from "../components/ui/Badge"
 import { Button } from "../components/ui/button"
-import { Card } from "../components/ui/card"
+import { Card } from "../components/ui/Card"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
 import {
@@ -26,15 +26,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../components/ui/dialog"
+} from "../components/ui/Dialog"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../components/ui/select"
-import { Separator } from "../components/ui/separator"
+} from "../components/ui/Select"
+import { Separator } from "../components/ui/Separator"
 import { DateInput } from "../components/ui/date-input"
 import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "../lib/date"
 import { useGroupsStore } from "../lib/groups-store"

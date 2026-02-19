@@ -1,19 +1,19 @@
 import { useMemo, useState } from "react"
 import { useLocation } from "wouter"
 import { BadgeDollarSign, ChevronRight, ClipboardList, FileText, Wallet } from "lucide-react"
-import AppSidebar from "@/components/app-sidebar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import AppSidebar from "../components/app-sidebar"
+import { Badge } from "../components/ui/Badge"
+import { Button } from "../components/ui/button"
+import { Card } from "../components/ui/Card"
+import { Input } from "../components/ui/input"
+import { Label } from "../components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "../components/ui/Select"
 import { DateInput } from "@/components/ui/date-input"
 import {
   dateToISO,
@@ -24,7 +24,7 @@ import {
   startOfMonthISO,
   startOfWeekISO,
   todayISO,
-} from "@/lib/date"
+} from "../lib/date"
 
 const DEMO_AGENTS = []
 const agentBillsSeed = []

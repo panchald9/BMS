@@ -1,21 +1,21 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { CreditCard, Info } from "lucide-react";
-import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "@/lib/date";
-import AppSidebar from "@/components/app-sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "../lib/date";
+import AppSidebar from "../components/app-sidebar";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/Card";
 import { DateInput } from "@/components/ui/date-input";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../components/ui/Select";
 
 const PAYMENT_METHODS_SEED = [
   { id: "pm-1", name: "Cash" },

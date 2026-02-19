@@ -1,12 +1,12 @@
 import { useMemo, useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { ChevronLeft, Layers, Pencil } from "lucide-react";
-import AppSidebar from "@/components/app-sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { getGroupFullData } from "@/lib/api";
+import AppSidebar from "../components/app-sidebar";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/Card";
+import { Separator } from "../components/ui/Separator";
+import { getGroupFullData } from "../lib/api";
 
 function isClaimOrDepo(t) {
   return t === "Claim" || t === "Depo";

@@ -16,7 +16,7 @@ import {
 import AppSidebar from "../components/AppSidebar"
 import { Badge } from "../components/ui/Badge"
 import { Button } from "../components/ui/button"
-import { Card } from "../components/ui/card"
+import { Card } from "../components/ui/Card"
 import { Input } from "../components/ui/input"
 import { Label } from "../components/ui/label"
 import {
@@ -25,9 +25,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+} from "../components/ui/Select"
+import { Separator } from "../components/ui/Separator"
+import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group"
 import {
   Table,
   TableBody,

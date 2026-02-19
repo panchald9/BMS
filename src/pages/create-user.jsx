@@ -1,21 +1,21 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Plus } from "lucide-react";
-import AppSidebar from "@/components/app-sidebar";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import AppSidebar from "../components/app-sidebar";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/Card";
+import { Checkbox } from "../components/ui/Checkbox";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useUsersStore } from "@/lib/users-store";
-import { useToast } from "@/hooks/use-toast";
+} from "../components/ui/Select";
+import { useUsersStore } from "../lib/users-store";
+import { useToast } from "../hooks/use-toast";
 
 const ALL_WORK_TYPES = ["Claimer", "Depositer"];
 

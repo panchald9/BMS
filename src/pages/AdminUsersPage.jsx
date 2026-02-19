@@ -3,10 +3,10 @@ import { useLocation } from "wouter"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 
 import AppSidebar from "../components/AppSidebar"
-import { Badge } from "../components/ui/badge"
+import { Badge } from "../components/ui/Badge"
 import { Button } from "../components/ui/button"
-import { Card } from "../components/ui/card"
-import { Separator } from "../components/ui/separator"
+import { Card } from "../components/ui/Card"
+import { Separator } from "../components/ui/Separator"
 import { useToast } from "../hooks/use-toast"
 
 function parseWorkTypes(worktype) {

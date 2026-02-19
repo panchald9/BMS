@@ -1,13 +1,13 @@
 import { useMemo, useEffect, useState } from "react"
 import { useLocation } from "wouter"
 import { Pencil, Plus, Trash2 } from "lucide-react"
-import AppSidebar from "@/components/app-sidebar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { getGroups, deleteGroup as deleteGroupApi } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
+import AppSidebar from "../components/app-sidebar"
+import { Badge } from "../components/ui/Badge"
+import { Button } from "../components/ui/button"
+import { Card } from "../components/ui/Card"
+import { Separator } from "../components/ui/Separator"
+import { getGroups, deleteGroup as deleteGroupApi } from "../lib/api"
+import { useToast } from "../hooks/use-toast"
 
 export default function GroupsPage() {
   const [, setLocation] = useLocation()
