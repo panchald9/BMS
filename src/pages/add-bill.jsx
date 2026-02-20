@@ -38,7 +38,7 @@ import { Separator } from "../components/ui/Separator"
 import { DateInput } from "../components/ui/date-input"
 import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "../lib/date"
 import { MOCK_CLIENTS } from "../lib/mock-data"
-import { getAgentUsers, getBillGroups } from "../lib/api"
+import { createBill, deleteBill, getAgentUsers, getBillGroups, getBills, updateBill } from "../lib/api"
 
 const TABS = ["Claim Bills", "Depo Bills", "Client Other Bill", "Agent Bill", "Agent Other Bill"]
 
@@ -74,6 +74,17 @@ function hasSameRateValue(group) {
   return s !== "" && s !== "null" && s !== "undefined"
 }
 
+function normalizeDateValue(value) {
+  if (!value) return ""
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10)
+  }
+  const s = String(value).trim()
+  if (!s) return ""
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  return parseDDMMYYYYToISO(s) || s
+}
+
 const demoClaimRows = []
 const demoDepoRows = []
 const demoClientOtherRows = []
@@ -102,6 +113,7 @@ export default function AddBillPage() {
   const [, setLocation] = useLocation()
   const [groups, setGroups] = useState([])
   const [agents, setAgents] = useState([])
+  const [isBillsLoading, setIsBillsLoading] = useState(false)
 
   const [tab, setTab] = useState("Claim Bills")
 
@@ -175,14 +187,43 @@ export default function AddBillPage() {
     demoClaimerCalculatedRows.map(row => ({
       ...row,
       agent: row.claimer,
+      claimer: row.claimer,
+      bank: "Other",
       source: row.group.includes("Depo") ? "Depo" : "Claim"
     }))
   )
+
+  function toBillRowFromApi(row) {
+    const amountNum = Number(row.amount || 0)
+    const rateNum = Number(row.rate || 0)
+    const totalNum = amountNum * rateNum
+    const source = String(row.group_type || "").toLowerCase() === "depo" ? "Depo" : "Claim"
+    return {
+      id: String(row.id),
+      date: normalizeDateValue(row.bill_date),
+      group: row.group_name || "-",
+      client: row.client_name || "-",
+      claimer: row.agent_name || "-",
+      bank: row.bank_name || "Other",
+      amount: `${amountNum.toFixed(2)} $`,
+      rate: `${rateNum.toFixed(2)} ₹`,
+      total: `${totalNum.toFixed(2)} ₹`,
+      source,
+      _dbId: Number(row.id),
+      _groupId: row.group_id != null ? String(row.group_id) : "",
+      _bankId: row.bank_id != null ? String(row.bank_id) : "",
+      _clientId: row.client_id != null ? String(row.client_id) : "",
+      _agentId: row.agent_id != null ? String(row.agent_id) : "",
+      _amountNum: amountNum
+    }
+  }
 
   const [isClaimFormOpen, setIsClaimFormOpen] = useState(false)
   const [isDepoFormOpen, setIsDepoFormOpen] = useState(false)
   const [isClientOtherFormOpen, setIsClientOtherFormOpen] = useState(false)
   const [isAgentOtherFormOpen, setIsAgentOtherFormOpen] = useState(false)
+  const [editingBillId, setEditingBillId] = useState(null)
+  const [editingBillSource, setEditingBillSource] = useState("")
 
   const agentUsers = useMemo(() => (agents.length ? agents : MOCK_AGENTS), [agents])
 
@@ -354,31 +395,40 @@ export default function AddBillPage() {
 
   function closeDepoForm() {
     setIsDepoFormOpen(false)
+    setEditingBillId(null)
+    setEditingBillSource("")
     resetDepoForm()
   }
 
-  function submitDepoBill(e) {
+  async function submitDepoBill(e) {
     e.preventDefault()
     if (!canSubmitDepo) return
 
     const amountNum = Number(String(depoAmount).trim())
     const rateNum = depoRate
-    const totalNum = amountNum * rateNum
+    const clientId = Number(selectedDepoGroup?.ownerClientId || 0)
 
-    const newRow = {
-      id: `d-${uid()}`,
-      date: depoDate.trim(),
-      group: selectedDepoGroup?.name ?? "-",
-      client: selectedDepoClientName || "-",
-      claimer: depositerAgents.find((a) => a.id === depoAgentId)?.name ?? "-",
-      bank: depoNeedsBankSelect ? (selectedDepoGroup?.banks || []).find((b) => b.bankId === depoBankId)?.bankName ?? "-" : "Other",
-      amount: `${amountNum.toFixed(2)} $`,
-      rate: `${rateNum.toFixed(2)} ₹`,
-      total: `${totalNum.toFixed(2)} ₹`,
-      source: "Depo",
+    const payload = {
+      bill_date: depoDate.trim(),
+      group_id: Number(depoGroupId),
+      bank_id: depoNeedsBankSelect ? Number(depoBankId) : null,
+      client_id: clientId,
+      agent_id: Number(depoAgentId),
+      amount: amountNum,
+      rate: rateNum
     }
 
-    setRows((prev) => [newRow, ...prev])
+    try {
+      if (editingBillId && editingBillSource === "Depo") {
+        await updateBill(editingBillId, payload)
+      } else {
+        await createBill(payload)
+      }
+      loadBillsForTab("Depo Bills")
+    } catch (error) {
+      console.error("Failed to save depo bill:", error)
+      return
+    }
 
     const agent = depositerAgents.find((a) => a.id === depoAgentId)
     const agentRate = agent?.rates?.Depositer ?? 0
@@ -391,6 +441,8 @@ export default function AddBillPage() {
         group: selectedDepoGroup?.name ?? "-",
         client: selectedDepoClientName || "-",
         agent: agent.name,
+        claimer: agent.name,
+        bank: depoNeedsBankSelect ? (selectedDepoGroup?.banks || []).find((b) => b.bankId === depoBankId)?.bankName ?? "-" : "Other",
         source: "Depo",
         amount: formatMoney(amountNum, " $"),
         rate: formatMoney(agentRate, " ₹"),
@@ -401,7 +453,6 @@ export default function AddBillPage() {
 
     closeDepoForm()
   }
-
   const claimGroups = useMemo(() => groups.filter((g) => g.groupType === "Claim"), [groups])
   const claimerAgents = useMemo(() => agentUsers.filter((a) => Array.isArray(a.workTypes) && a.workTypes.includes("Claimer")), [agentUsers])
 
@@ -462,31 +513,40 @@ export default function AddBillPage() {
 
   function closeClaimForm() {
     setIsClaimFormOpen(false)
+    setEditingBillId(null)
+    setEditingBillSource("")
     resetClaimForm()
   }
 
-  function submitClaimBill(e) {
+  async function submitClaimBill(e) {
     e.preventDefault()
     if (!canSubmitClaim) return
 
     const amountNum = Number(String(claimAmount).trim())
     const rateNum = computedRate
-    const totalNum = amountNum * rateNum
+    const clientId = Number(selectedClaimGroup?.ownerClientId || 0)
 
-    const newRow = {
-      id: `c-${uid()}`,
-      date: claimDate.trim(),
-      group: selectedClaimGroup?.name ?? "-",
-      client: selectedClientName || "-",
-      claimer: claimerAgents.find((a) => a.id === claimAgentId)?.name ?? "-",
-      bank: needsBankSelect ? (selectedClaimGroup?.banks || []).find((b) => b.bankId === claimBankId)?.bankName ?? "-" : "Other",
-      amount: `${amountNum.toFixed(2)} $`,
-      rate: `${rateNum.toFixed(2)} ₹`,
-      total: `${totalNum.toFixed(2)} ₹`,
-      source: "Claim",
+    const payload = {
+      bill_date: claimDate.trim(),
+      group_id: Number(claimGroupId),
+      bank_id: needsBankSelect ? Number(claimBankId) : null,
+      client_id: clientId,
+      agent_id: Number(claimAgentId),
+      amount: amountNum,
+      rate: rateNum
     }
 
-    setRows((prev) => [newRow, ...prev])
+    try {
+      if (editingBillId && editingBillSource === "Claim") {
+        await updateBill(editingBillId, payload)
+      } else {
+        await createBill(payload)
+      }
+      loadBillsForTab("Claim Bills")
+    } catch (error) {
+      console.error("Failed to save claim bill:", error)
+      return
+    }
 
     const agent = claimerAgents.find((a) => a.id === claimAgentId)
     const agentRate = agent?.rates?.Claimer ?? 0
@@ -499,6 +559,8 @@ export default function AddBillPage() {
         group: selectedClaimGroup?.name ?? "-",
         client: selectedClientName || "-",
         agent: agent.name,
+        claimer: agent.name,
+        bank: needsBankSelect ? (selectedClaimGroup?.banks || []).find((b) => b.bankId === claimBankId)?.bankName ?? "-" : "Other",
         source: "Claim",
         amount: formatMoney(amountNum, " $"),
         rate: formatMoney(agentRate, " ₹"),
@@ -509,7 +571,6 @@ export default function AddBillPage() {
 
     closeClaimForm()
   }
-
   const sectionTitle = useMemo(() => {
     if (tab === "Claim Bills") return "Client Claim Bills"
     if (tab === "Depo Bills") return "Client Depo Bills"
@@ -520,11 +581,73 @@ export default function AddBillPage() {
   }, [tab])
 
   function rowsForTab(t) {
-    if (t === "Depo Bills") return demoDepoRows
+    if (t === "Depo Bills") return []
     if (t === "Client Other Bill") return demoClientOtherRows
     if (t === "Agent Bill") return agentBillRows
     if (t === "Agent Other Bill") return demoClaimerOtherRows
+    if (t === "Claim Bills") return []
     return demoClaimRows
+  }
+
+  function loadBillsForTab(currentTab) {
+    if (currentTab !== "Claim Bills" && currentTab !== "Depo Bills") return
+    const type = currentTab === "Depo Bills" ? "Depo" : "Claim"
+    setIsBillsLoading(true)
+    getBills(type)
+      .then((data) => {
+        setRows(Array.isArray(data) ? data.map(toBillRowFromApi) : [])
+      })
+      .catch((error) => {
+        console.error("Failed to load bills:", error)
+        setRows([])
+      })
+      .finally(() => setIsBillsLoading(false))
+  }
+
+  async function handleDeleteRow(row) {
+    const isDbTab = tab === "Claim Bills" || tab === "Depo Bills"
+    if (isDbTab && row?._dbId) {
+      try {
+        await deleteBill(row._dbId)
+        if (editingBillId && Number(editingBillId) === Number(row._dbId)) {
+          setEditingBillId(null)
+          setEditingBillSource("")
+        }
+        loadBillsForTab(tab)
+      } catch (error) {
+        console.error("Failed to delete bill:", error)
+      }
+      return
+    }
+    setRows((prev) => prev.filter((x) => x.id !== row.id))
+  }
+
+  function handleEditRow(row) {
+    if (!(tab === "Claim Bills" || tab === "Depo Bills")) return
+    if (!row?._dbId) return
+
+    const source = row.source === "Depo" ? "Depo" : "Claim"
+    setEditingBillId(Number(row._dbId))
+    setEditingBillSource(source)
+
+    if (source === "Depo") {
+      setIsClaimFormOpen(false)
+      setIsDepoFormOpen(true)
+      setDepoDate(normalizeDateValue(row.date))
+      setDepoGroupId(String(row._groupId || ""))
+      setDepoBankId(String(row._bankId || ""))
+      setDepoAgentId(String(row._agentId || ""))
+      setDepoAmount(String(row._amountNum ?? ""))
+      return
+    }
+
+    setIsDepoFormOpen(false)
+    setIsClaimFormOpen(true)
+    setClaimDate(normalizeDateValue(row.date))
+    setClaimGroupId(String(row._groupId || ""))
+    setClaimBankId(String(row._bankId || ""))
+    setClaimAgentId(String(row._agentId || ""))
+    setClaimAmount(String(row._amountNum ?? ""))
   }
 
   useEffect(() => {
@@ -553,6 +676,10 @@ export default function AddBillPage() {
       mounted = false
     }
   }, [])
+
+  useEffect(() => {
+    loadBillsForTab(tab)
+  }, [tab])
 
   return (
     <AppSidebar>
@@ -608,6 +735,8 @@ export default function AddBillPage() {
                           setIsClaimFormOpen(false)
                           setIsDepoFormOpen(false)
                           setIsClientOtherFormOpen(false)
+                          setEditingBillId(null)
+                          setEditingBillSource("")
                         }}
                         testId={`tab-${t.toLowerCase().replace(/\s+/g, "-")}`}
                       />
@@ -671,6 +800,9 @@ export default function AddBillPage() {
                   {tab === "Claim Bills" ? (
                     <Button
                       onClick={() => {
+                        setEditingBillId(null)
+                        setEditingBillSource("")
+                        resetClaimForm()
                         setIsDepoFormOpen(false)
                         setIsClientOtherFormOpen(false)
                         setIsAgentOtherFormOpen(false)
@@ -683,6 +815,9 @@ export default function AddBillPage() {
                   ) : tab === "Depo Bills" ? (
                     <Button
                       onClick={() => {
+                        setEditingBillId(null)
+                        setEditingBillSource("")
+                        resetDepoForm()
                         setIsClaimFormOpen(false)
                         setIsClientOtherFormOpen(false)
                         setIsAgentOtherFormOpen(false)
@@ -726,12 +861,12 @@ export default function AddBillPage() {
                 <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-claim-bill">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-sm font-semibold">New Claim Bill</div>
+                      <div className="text-sm font-semibold">{editingBillSource === "Claim" ? "Edit Claim Bill" : "New Claim Bill"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeClaimForm}><X className="h-4 w-4" /> Cancel</Button>
-                      <Button type="submit" form="form-new-claim-bill" disabled={!canSubmitClaim}><Plus className="h-4 w-4" /> Save</Button>
+                      <Button type="submit" form="form-new-claim-bill" disabled={!canSubmitClaim}><Plus className="h-4 w-4" /> {editingBillSource === "Claim" ? "Update" : "Save"}</Button>
                     </div>
                   </div>
                   <Separator className="my-4" />
@@ -802,12 +937,12 @@ export default function AddBillPage() {
                 <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-depo-bill">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-sm font-semibold">New Depo Bill</div>
+                      <div className="text-sm font-semibold">{editingBillSource === "Depo" ? "Edit Depo Bill" : "New Depo Bill"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeDepoForm}><X className="h-4 w-4" /> Cancel</Button>
-                      <Button type="submit" form="form-new-depo-bill" disabled={!canSubmitDepo}><Plus className="h-4 w-4" /> Save</Button>
+                      <Button type="submit" form="form-new-depo-bill" disabled={!canSubmitDepo}><Plus className="h-4 w-4" /> {editingBillSource === "Depo" ? "Update" : "Save"}</Button>
                     </div>
                   </div>
                   <Separator className="my-4" />
@@ -998,7 +1133,7 @@ export default function AddBillPage() {
                         data-testid={`row-bill-${r.id}`}
                       >
                         <div className="text-xs text-foreground text-center" data-testid={`cell-date-${r.id}`}>
-                          {formatDateDDMMYYYY(parseDDMMYYYYToISO(r.date) ?? r.date)}
+                          {formatDateDDMMYYYY(normalizeDateValue(r.date))}
                         </div>
                         <div className="truncate text-xs text-left pl-4" data-testid={`cell-group-${r.id}`}>
                           {r.group}
@@ -1007,13 +1142,13 @@ export default function AddBillPage() {
                           {r.client}
                         </div>
                         <div className="truncate text-xs text-left pl-4" data-testid={`cell-claimer-${r.id}`}>
-                          {r.claimer}
+                          {r.claimer || r.agent || "-"}
                         </div>
                         <div className="truncate text-xs text-center" data-testid={`cell-source-${r.id}`}>
                           {r.source || "-"}
                         </div>
                         <div className="truncate text-xs text-center" data-testid={`cell-bank-${r.id}`}>
-                          {r.bank}
+                          {r.bank || "-"}
                         </div>
                         <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-amount-${r.id}`}>
                           {r.amount}
@@ -1027,6 +1162,7 @@ export default function AddBillPage() {
                         <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
                           <button
                             className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
+                            onClick={() => handleEditRow(r)}
                             data-testid={`button-edit-bill-${r.id}`}
                             type="button"
                           >
@@ -1034,7 +1170,7 @@ export default function AddBillPage() {
                           </button>
                           <button
                             className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
-                            onClick={() => setRows((prev) => prev.filter((x) => x.id !== r.id))}
+                            onClick={() => handleDeleteRow(r)}
                             data-testid={`button-delete-bill-${r.id}`}
                             type="button"
                           >
@@ -1068,3 +1204,4 @@ export default function AddBillPage() {
   )
 }
  
+

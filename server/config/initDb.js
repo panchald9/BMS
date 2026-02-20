@@ -75,6 +75,34 @@ const initDb = async () => {
         ON DELETE CASCADE
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bill (
+      id SERIAL PRIMARY KEY,
+      bill_date DATE NOT NULL,
+      group_id INTEGER NOT NULL,
+      bank_id INTEGER,
+      client_id INTEGER NOT NULL,
+      agent_id INTEGER NOT NULL,
+      amount NUMERIC(12,2) NOT NULL,
+      rate NUMERIC(12,2),
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_bill_group
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+      CONSTRAINT fk_bill_bank
+        FOREIGN KEY (bank_id) REFERENCES banks(id),
+      CONSTRAINT fk_bill_client
+        FOREIGN KEY (client_id) REFERENCES users(id),
+      CONSTRAINT fk_bill_agent
+        FOREIGN KEY (agent_id) REFERENCES users(id)
+    );
+  `);
+
+  // Allow same-rate groups to store bills without bank_id.
+  await pool.query(`
+    ALTER TABLE bill
+    ALTER COLUMN bank_id DROP NOT NULL;
+  `);
 };
 
 module.exports = initDb;

@@ -122,3 +122,30 @@ export function getAgentUsers(worktype) {
   const query = params.toString();
   return request(`/users/agents${query ? `?${query}` : ""}`);
 }
+
+export function getBills(type) {
+  const params = new URLSearchParams();
+  if (type) params.set("type", String(type));
+  const q = params.toString();
+  return request(`/bills${q ? `?${q}` : ""}`);
+}
+
+export function createBill(payload) {
+  return request("/bills", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateBill(id, payload) {
+  return request(`/bills/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteBill(id) {
+  return request(`/bills/${id}`, {
+    method: "DELETE",
+  });
+}
