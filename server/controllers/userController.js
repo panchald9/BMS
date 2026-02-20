@@ -246,3 +246,63 @@ exports.getClientUsers = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+function normalizeAgentRateMap(agentRates, fallbackRate, workTypes) {
+  const result = {};
+
+  const applyFromObject = (obj) => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+    for (const [key, raw] of Object.entries(obj)) {
+      const n = Number(raw);
+      if (Number.isFinite(n)) result[key] = n;
+    }
+  };
+
+  applyFromObject(agentRates);
+
+  if (!Object.keys(result).length) {
+    if (fallbackRate && typeof fallbackRate === 'object' && !Array.isArray(fallbackRate)) {
+      applyFromObject(fallbackRate);
+    } else {
+      const n = Number(fallbackRate);
+      if (Number.isFinite(n)) {
+        for (const wt of workTypes) {
+          result[wt] = n;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+exports.getAgentUsers = async (req, res) => {
+  try {
+    const filterWorktype = String(req.query.worktype || '').trim().toLowerCase();
+    const rows = await userModel.getAgentUsers();
+
+    const agents = rows
+      .map((row) => {
+        const workTypes = String(row.worktype || '')
+          .split(',')
+          .map((x) => x.trim())
+          .filter(Boolean);
+        const rates = normalizeAgentRateMap(row.agent_rates, row.rate, workTypes);
+
+        return {
+          id: String(row.id),
+          name: row.name,
+          workTypes,
+          rates
+        };
+      })
+      .filter((agent) => {
+        if (!filterWorktype) return true;
+        return agent.workTypes.some((wt) => wt.toLowerCase() === filterWorktype);
+      });
+
+    return res.json(agents);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

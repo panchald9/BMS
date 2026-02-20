@@ -58,4 +58,58 @@ const getGroupFullData = async (id) => {
   };
 };
 
-module.exports = { getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup, getGroupFullData };
+const getGroupsBillConfigByType = async (type) => {
+  const groupsResult = await pool.query(
+    `SELECT g.id, g.name, g.type, g.owner, g.same_rate, u.name AS owner_name
+     FROM groups g
+     LEFT JOIN users u ON u.id = g.owner
+     WHERE LOWER(COALESCE(g.type, '')) = LOWER($1)
+     ORDER BY g.id ASC`,
+    [String(type || '').trim()]
+  );
+
+  const groups = groupsResult.rows;
+  if (!groups.length) return [];
+
+  const groupIds = groups.map((g) => g.id);
+  const bankRatesResult = await pool.query(
+    `SELECT gbr.group_id, gbr.bank_id, gbr.rate, b.bank_name
+     FROM group_bank_rate gbr
+     JOIN banks b ON b.id = gbr.bank_id
+     WHERE gbr.group_id = ANY($1::int[])
+     ORDER BY gbr.group_id ASC, b.bank_name ASC`,
+    [groupIds]
+  );
+
+  const bankRatesByGroup = new Map();
+  for (const row of bankRatesResult.rows) {
+    const key = String(row.group_id);
+    if (!bankRatesByGroup.has(key)) bankRatesByGroup.set(key, []);
+    bankRatesByGroup.get(key).push({
+      bankId: String(row.bank_id),
+      bankName: row.bank_name,
+      rate: Number(row.rate)
+    });
+  }
+
+  return groups.map((g) => {
+    const list = bankRatesByGroup.get(String(g.id)) || [];
+    const hasSameRate = g.same_rate !== null && g.same_rate !== undefined;
+    const perBankRates = {};
+    for (const item of list) perBankRates[item.bankId] = String(item.rate);
+
+    return {
+      id: String(g.id),
+      name: g.name,
+      groupType: g.type || '',
+      ownerClientId: g.owner !== null && g.owner !== undefined ? String(g.owner) : '',
+      ownerName: g.owner_name || '',
+      rateMode: hasSameRate ? 'same' : 'per-bank',
+      sameRate: hasSameRate ? String(g.same_rate) : '',
+      perBankRates,
+      banks: list
+    };
+  });
+};
+
+module.exports = { getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup, getGroupFullData, getGroupsBillConfigByType };

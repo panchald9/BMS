@@ -1,5 +1,5 @@
 import Papa from "papaparse"
-import { useMemo, useState, useRef } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { useLocation } from "wouter"
 import {
   BadgeDollarSign,
@@ -37,12 +37,11 @@ import {
 import { Separator } from "../components/ui/Separator"
 import { DateInput } from "../components/ui/date-input"
 import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "../lib/date"
-import { useGroupsStore } from "../lib/groups-store"
+import { MOCK_CLIENTS } from "../lib/mock-data"
+import { getAgentUsers, getBillGroups } from "../lib/api"
 
 const TABS = ["Claim Bills", "Depo Bills", "Client Other Bill", "Agent Bill", "Agent Other Bill"]
 
-const MOCK_BANKS = []
-const MOCK_CLIENTS = []
 const MOCK_AGENTS = []
 
 function uid() {
@@ -65,6 +64,14 @@ function isNumberValue(v) {
 
 function formatMoney(n, suffix) {
   return `${n.toFixed(2)}${suffix}`
+}
+
+function hasSameRateValue(group) {
+  if (!group) return false
+  const v = group.sameRate
+  if (v === null || v === undefined) return false
+  const s = String(v).trim().toLowerCase()
+  return s !== "" && s !== "null" && s !== "undefined"
 }
 
 const demoClaimRows = []
@@ -93,7 +100,8 @@ function TabButton({ active, label, onClick, testId }) {
 
 export default function AddBillPage() {
   const [, setLocation] = useLocation()
-  const { groups } = useGroupsStore()
+  const [groups, setGroups] = useState([])
+  const [agents, setAgents] = useState([])
 
   const [tab, setTab] = useState("Claim Bills")
 
@@ -176,7 +184,331 @@ export default function AddBillPage() {
   const [isClientOtherFormOpen, setIsClientOtherFormOpen] = useState(false)
   const [isAgentOtherFormOpen, setIsAgentOtherFormOpen] = useState(false)
 
-  const agentUsers = useMemo(() => MOCK_AGENTS, [])
+  const agentUsers = useMemo(() => (agents.length ? agents : MOCK_AGENTS), [agents])
+
+  const [agentOtherDate, setAgentOtherDate] = useState("")
+  const [agentOtherAgentId, setAgentOtherAgentId] = useState("")
+  const [agentOtherComment, setAgentOtherComment] = useState("")
+  const [agentOtherAmount, setAgentOtherAmount] = useState("")
+
+  const agentOtherTotal = useMemo(() => {
+    const amt = Number(String(agentOtherAmount).trim())
+    if (!Number.isFinite(amt)) return 0
+    return amt
+  }, [agentOtherAmount])
+
+  const canSubmitAgentOther = useMemo(() => {
+    if (!agentOtherDate.trim()) return false
+    if (!agentOtherAgentId) return false
+    if (!isNumberValue(agentOtherAmount)) return false
+    return true
+  }, [agentOtherDate, agentOtherAgentId, agentOtherAmount])
+
+  function resetAgentOtherForm() {
+    setAgentOtherDate("")
+    setAgentOtherAgentId("")
+    setAgentOtherComment("")
+    setAgentOtherAmount("")
+  }
+
+  function closeAgentOtherForm() {
+    setIsAgentOtherFormOpen(false)
+    resetAgentOtherForm()
+  }
+
+  function submitAgentOtherBill(e) {
+    e.preventDefault()
+    if (!canSubmitAgentOther) return
+
+    const amountNum = Number(String(agentOtherAmount).trim())
+    const newRow = {
+      id: `ao-${uid()}`,
+      date: agentOtherDate.trim(),
+      agent: agentUsers.find((a) => a.id === agentOtherAgentId)?.name ?? "-",
+      comment: agentOtherComment.trim() || "-",
+      amount: `${amountNum.toFixed(2)} ₹`,
+      total: `${amountNum.toFixed(2)} ₹`,
+    }
+
+    setRows((prev) => [newRow, ...prev])
+    closeAgentOtherForm()
+  }
+
+  const paymentGroups = useMemo(() => groups.filter((g) => g.groupType === "Payment"), [groups])
+
+  const [clientOtherDate, setClientOtherDate] = useState("")
+  const [clientOtherGroupId, setClientOtherGroupId] = useState("")
+  const [clientOtherComment, setClientOtherComment] = useState("")
+  const [clientOtherAmount, setClientOtherAmount] = useState("")
+
+  const selectedPaymentGroup = useMemo(
+    () => paymentGroups.find((g) => g.id === clientOtherGroupId),
+    [paymentGroups, clientOtherGroupId]
+  )
+  const selectedClientOtherName = useMemo(() => {
+    if (!selectedPaymentGroup) return ""
+    return selectedPaymentGroup.ownerName || (MOCK_CLIENTS.find((c) => c.id === selectedPaymentGroup.ownerClientId)?.name ?? "")
+  }, [selectedPaymentGroup])
+
+  const clientOtherTotal = useMemo(() => {
+    const amt = Number(String(clientOtherAmount).trim())
+    if (!Number.isFinite(amt)) return 0
+    return amt
+  }, [clientOtherAmount])
+
+  const canSubmitClientOther = useMemo(() => {
+    if (!clientOtherDate.trim()) return false
+    if (!clientOtherGroupId) return false
+    if (!isNumberValue(clientOtherAmount)) return false
+    return true
+  }, [clientOtherDate, clientOtherGroupId, clientOtherAmount])
+
+  function resetClientOtherForm() {
+    setClientOtherDate("")
+    setClientOtherGroupId("")
+    setClientOtherComment("")
+    setClientOtherAmount("")
+  }
+
+  function closeClientOtherForm() {
+    setIsClientOtherFormOpen(false)
+    resetClientOtherForm()
+  }
+
+  function submitClientOtherBill(e) {
+    e.preventDefault()
+    if (!canSubmitClientOther) return
+
+    const amountNum = Number(String(clientOtherAmount).trim())
+    const newRow = {
+      id: `o-${uid()}`,
+      date: clientOtherDate.trim(),
+      group: selectedPaymentGroup?.name ?? "-",
+      client: selectedClientOtherName || "-",
+      comment: clientOtherComment.trim() || "-",
+      amount: `${amountNum.toFixed(2)} ₹`,
+      total: `${amountNum.toFixed(2)} ₹`,
+    }
+
+    setRows((prev) => [newRow, ...prev])
+    closeClientOtherForm()
+  }
+
+  const depoGroups = useMemo(() => groups.filter((g) => g.groupType === "Depo"), [groups])
+  const depositerAgents = useMemo(() => agentUsers.filter((a) => Array.isArray(a.workTypes) && a.workTypes.includes("Depositer")), [agentUsers])
+
+  const [depoDate, setDepoDate] = useState("")
+  const [depoGroupId, setDepoGroupId] = useState("")
+  const [depoBankId, setDepoBankId] = useState("")
+  const [depoAgentId, setDepoAgentId] = useState("")
+  const [depoAmount, setDepoAmount] = useState("")
+
+  const selectedDepoGroup = useMemo(() => depoGroups.find((g) => g.id === depoGroupId), [depoGroups, depoGroupId])
+  const selectedDepoClientName = useMemo(() => {
+    if (!selectedDepoGroup) return ""
+    return selectedDepoGroup.ownerName || (MOCK_CLIENTS.find((c) => c.id === selectedDepoGroup.ownerClientId)?.name ?? "")
+  }, [selectedDepoGroup])
+
+  const depoNeedsBankSelect = useMemo(() => !!selectedDepoGroup && !hasSameRateValue(selectedDepoGroup), [selectedDepoGroup])
+
+  const depoRate = useMemo(() => {
+    if (!selectedDepoGroup) return 0
+    if (selectedDepoGroup.groupType !== "Depo") return 0
+
+    if (depoNeedsBankSelect) {
+      if (!depoBankId) return 0
+      const v = selectedDepoGroup.perBankRates?.[depoBankId] ?? ""
+      const n = Number(String(v).trim())
+      return Number.isFinite(n) ? n : 0
+    }
+
+    const v = selectedDepoGroup.sameRate ?? ""
+    const n = Number(String(v).trim())
+    return Number.isFinite(n) ? n : 0
+  }, [selectedDepoGroup, depoBankId, depoNeedsBankSelect])
+
+  const depoTotal = useMemo(() => {
+    const amt = Number(String(depoAmount).trim())
+    if (!Number.isFinite(amt) || amt < 0) return 0
+    if (!Number.isFinite(depoRate) || depoRate < 0) return 0
+    return amt * depoRate
+  }, [depoAmount, depoRate])
+
+  const canSubmitDepo = useMemo(() => {
+    if (!depoDate.trim()) return false
+    if (!depoGroupId) return false
+    if (depoNeedsBankSelect && !depoBankId) return false
+    if (!depoAgentId) return false
+    if (!isNonNegativeNumber(depoAmount)) return false
+    if (!depoRate || depoRate < 0) return false
+    return true
+  }, [depoDate, depoGroupId, depoNeedsBankSelect, depoBankId, depoAgentId, depoAmount, depoRate])
+
+  function resetDepoForm() {
+    setDepoDate("")
+    setDepoGroupId("")
+    setDepoBankId("")
+    setDepoAgentId("")
+    setDepoAmount("")
+  }
+
+  function closeDepoForm() {
+    setIsDepoFormOpen(false)
+    resetDepoForm()
+  }
+
+  function submitDepoBill(e) {
+    e.preventDefault()
+    if (!canSubmitDepo) return
+
+    const amountNum = Number(String(depoAmount).trim())
+    const rateNum = depoRate
+    const totalNum = amountNum * rateNum
+
+    const newRow = {
+      id: `d-${uid()}`,
+      date: depoDate.trim(),
+      group: selectedDepoGroup?.name ?? "-",
+      client: selectedDepoClientName || "-",
+      claimer: depositerAgents.find((a) => a.id === depoAgentId)?.name ?? "-",
+      bank: depoNeedsBankSelect ? (selectedDepoGroup?.banks || []).find((b) => b.bankId === depoBankId)?.bankName ?? "-" : "Other",
+      amount: `${amountNum.toFixed(2)} $`,
+      rate: `${rateNum.toFixed(2)} ₹`,
+      total: `${totalNum.toFixed(2)} ₹`,
+      source: "Depo",
+    }
+
+    setRows((prev) => [newRow, ...prev])
+
+    const agent = depositerAgents.find((a) => a.id === depoAgentId)
+    const agentRate = agent?.rates?.Depositer ?? 0
+    const agentTotal = amountNum * agentRate
+
+    if (agent && agentRate > 0) {
+      const newAgentBill = {
+        id: `ab-${uid()}`,
+        date: depoDate.trim(),
+        group: selectedDepoGroup?.name ?? "-",
+        client: selectedDepoClientName || "-",
+        agent: agent.name,
+        source: "Depo",
+        amount: formatMoney(amountNum, " $"),
+        rate: formatMoney(agentRate, " ₹"),
+        total: formatMoney(agentTotal, " ₹"),
+      }
+      setAgentBillRows((prev) => [newAgentBill, ...prev])
+    }
+
+    closeDepoForm()
+  }
+
+  const claimGroups = useMemo(() => groups.filter((g) => g.groupType === "Claim"), [groups])
+  const claimerAgents = useMemo(() => agentUsers.filter((a) => Array.isArray(a.workTypes) && a.workTypes.includes("Claimer")), [agentUsers])
+
+  const [claimDate, setClaimDate] = useState("")
+  const [claimGroupId, setClaimGroupId] = useState("")
+  const [claimBankId, setClaimBankId] = useState("")
+  const [claimAgentId, setClaimAgentId] = useState("")
+  const [claimAmount, setClaimAmount] = useState("")
+
+  const selectedClaimGroup = useMemo(() => claimGroups.find((g) => g.id === claimGroupId), [claimGroups, claimGroupId])
+  const selectedClientName = useMemo(() => {
+    if (!selectedClaimGroup) return ""
+    return selectedClaimGroup.ownerName || (MOCK_CLIENTS.find((c) => c.id === selectedClaimGroup.ownerClientId)?.name ?? "")
+  }, [selectedClaimGroup])
+
+  const needsBankSelect = useMemo(() => !!selectedClaimGroup && !hasSameRateValue(selectedClaimGroup), [selectedClaimGroup])
+
+  const computedRate = useMemo(() => {
+    if (!selectedClaimGroup) return 0
+    if (selectedClaimGroup.groupType !== "Claim") return 0
+
+    if (needsBankSelect) {
+      if (!claimBankId) return 0
+      const v = selectedClaimGroup.perBankRates?.[claimBankId] ?? ""
+      const n = Number(String(v).trim())
+      return Number.isFinite(n) ? n : 0
+    }
+
+    const v = selectedClaimGroup.sameRate ?? ""
+    const n = Number(String(v).trim())
+    return Number.isFinite(n) ? n : 0
+  }, [selectedClaimGroup, claimBankId, needsBankSelect])
+
+  const computedTotal = useMemo(() => {
+    const amt = Number(String(claimAmount).trim())
+    if (!Number.isFinite(amt) || amt < 0) return 0
+    if (!Number.isFinite(computedRate) || computedRate < 0) return 0
+    return amt * computedRate
+  }, [claimAmount, computedRate])
+
+  const canSubmitClaim = useMemo(() => {
+    if (!claimDate.trim()) return false
+    if (!claimGroupId) return false
+    if (needsBankSelect && !claimBankId) return false
+    if (!claimAgentId) return false
+    if (!isNonNegativeNumber(claimAmount)) return false
+    if (!computedRate || computedRate < 0) return false
+    return true
+  }, [claimDate, claimGroupId, needsBankSelect, claimBankId, claimAgentId, claimAmount, computedRate])
+
+  function resetClaimForm() {
+    setClaimDate("")
+    setClaimGroupId("")
+    setClaimBankId("")
+    setClaimAgentId("")
+    setClaimAmount("")
+  }
+
+  function closeClaimForm() {
+    setIsClaimFormOpen(false)
+    resetClaimForm()
+  }
+
+  function submitClaimBill(e) {
+    e.preventDefault()
+    if (!canSubmitClaim) return
+
+    const amountNum = Number(String(claimAmount).trim())
+    const rateNum = computedRate
+    const totalNum = amountNum * rateNum
+
+    const newRow = {
+      id: `c-${uid()}`,
+      date: claimDate.trim(),
+      group: selectedClaimGroup?.name ?? "-",
+      client: selectedClientName || "-",
+      claimer: claimerAgents.find((a) => a.id === claimAgentId)?.name ?? "-",
+      bank: needsBankSelect ? (selectedClaimGroup?.banks || []).find((b) => b.bankId === claimBankId)?.bankName ?? "-" : "Other",
+      amount: `${amountNum.toFixed(2)} $`,
+      rate: `${rateNum.toFixed(2)} ₹`,
+      total: `${totalNum.toFixed(2)} ₹`,
+      source: "Claim",
+    }
+
+    setRows((prev) => [newRow, ...prev])
+
+    const agent = claimerAgents.find((a) => a.id === claimAgentId)
+    const agentRate = agent?.rates?.Claimer ?? 0
+    const agentTotal = amountNum * agentRate
+
+    if (agent && agentRate > 0) {
+      const newAgentBill = {
+        id: `ab-${uid()}`,
+        date: claimDate.trim(),
+        group: selectedClaimGroup?.name ?? "-",
+        client: selectedClientName || "-",
+        agent: agent.name,
+        source: "Claim",
+        amount: formatMoney(amountNum, " $"),
+        rate: formatMoney(agentRate, " ₹"),
+        total: formatMoney(agentTotal, " ₹"),
+      }
+      setAgentBillRows((prev) => [newAgentBill, ...prev])
+    }
+
+    closeClaimForm()
+  }
 
   const sectionTitle = useMemo(() => {
     if (tab === "Claim Bills") return "Client Claim Bills"
@@ -194,6 +526,33 @@ export default function AddBillPage() {
     if (t === "Agent Other Bill") return demoClaimerOtherRows
     return demoClaimRows
   }
+
+  useEffect(() => {
+    let mounted = true
+
+    Promise.all([
+      getBillGroups("Claim"),
+      getBillGroups("Depo"),
+      getBillGroups("Payment"),
+      getAgentUsers()
+    ])
+      .then(([claim, depo, payment, agentList]) => {
+        if (!mounted) return
+        const allGroups = [...(claim || []), ...(depo || []), ...(payment || [])]
+        setGroups(allGroups)
+        setAgents(Array.isArray(agentList) ? agentList : [])
+      })
+      .catch((error) => {
+        console.error("Failed to load bill config:", error)
+        if (!mounted) return
+        setGroups([])
+        setAgents([])
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
     <AppSidebar>
@@ -309,15 +668,309 @@ export default function AddBillPage() {
                     </Dialog>
                   )}
 
-                  {tab === "Claim Bills" && (
-                    <Button onClick={() => setIsClaimFormOpen(true)} data-testid="button-new-claim-bill">
+                  {tab === "Claim Bills" ? (
+                    <Button
+                      onClick={() => {
+                        setIsDepoFormOpen(false)
+                        setIsClientOtherFormOpen(false)
+                        setIsAgentOtherFormOpen(false)
+                        setIsClaimFormOpen(true)
+                      }}
+                      data-testid="button-new-claim-bill"
+                    >
                       <Plus className="h-4 w-4" /> New Claim Bill
                     </Button>
-                  )}
+                  ) : tab === "Depo Bills" ? (
+                    <Button
+                      onClick={() => {
+                        setIsClaimFormOpen(false)
+                        setIsClientOtherFormOpen(false)
+                        setIsAgentOtherFormOpen(false)
+                        setIsDepoFormOpen(true)
+                      }}
+                      data-testid="button-new-depo-bill"
+                    >
+                      <Plus className="h-4 w-4" /> New Depo Bill
+                    </Button>
+                  ) : tab === "Client Other Bill" ? (
+                    <Button
+                      onClick={() => {
+                        setIsClaimFormOpen(false)
+                        setIsDepoFormOpen(false)
+                        setIsAgentOtherFormOpen(false)
+                        setIsClientOtherFormOpen(true)
+                      }}
+                      data-testid="button-new-client-other-bill"
+                    >
+                      <Plus className="h-4 w-4" /> New Client Other Bill
+                    </Button>
+                  ) : tab === "Agent Other Bill" ? (
+                    <Button
+                      onClick={() => {
+                        setIsClaimFormOpen(false)
+                        setIsDepoFormOpen(false)
+                        setIsClientOtherFormOpen(false)
+                        setIsAgentOtherFormOpen(true)
+                      }}
+                      data-testid="button-new-agent-other-bill"
+                    >
+                      <Plus className="h-4 w-4" /> New Agent Other Bill
+                    </Button>
+                  ) : null}
                 </div>
               </div>
 
               <Separator className="my-4" />
+
+              {isClaimFormOpen ? (
+                <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-claim-bill">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">New Claim Bill</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="secondary" onClick={closeClaimForm}><X className="h-4 w-4" /> Cancel</Button>
+                      <Button type="submit" form="form-new-claim-bill" disabled={!canSubmitClaim}><Plus className="h-4 w-4" /> Save</Button>
+                    </div>
+                  </div>
+                  <Separator className="my-4" />
+                  <form id="form-new-claim-bill" onSubmit={submitClaimBill} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-sm">Date</Label>
+                      <DateInput valueISO={claimDate} onChangeISO={setClaimDate} maxISO={todayISO()} inputTestId="input-claim-date" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Claim Group Name</Label>
+                      <Select value={claimGroupId} onValueChange={(v) => { setClaimGroupId(v); setClaimBankId("") }}>
+                        <SelectTrigger className="soft-ring mt-1 h-11">
+                          <SelectValue placeholder={claimGroups.length ? "Select claim group" : "No claim groups"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {claimGroups.length ? claimGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No claim groups available</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {needsBankSelect ? (
+                      <div>
+                        <Label className="text-sm">Bank</Label>
+                        <Select value={claimBankId} onValueChange={setClaimBankId}>
+                          <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select bank" /></SelectTrigger>
+                          <SelectContent>
+                            {(selectedClaimGroup?.banks || []).map((b) => (
+                              <SelectItem key={b.bankId} value={b.bankId}>{b.bankName}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border bg-muted/20 p-4">
+                        <div className="text-xs font-medium text-muted-foreground">Bank</div>
+                        <div className="mt-1 text-sm">{selectedClaimGroup ? "Not required (same rate)" : "Select a group first"}</div>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-sm">Client</Label>
+                      <Input value={selectedClientName} readOnly placeholder="Auto selected" className="mt-1 h-11 bg-muted/30" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Agent</Label>
+                      <Select value={claimAgentId} onValueChange={setClaimAgentId}>
+                        <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select claimer agent" /></SelectTrigger>
+                        <SelectContent>{claimerAgents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Claim Amount</Label>
+                      <Input inputMode="decimal" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Rate</Label>
+                      <Input value={computedRate ? formatMoney(computedRate, " ₹") : ""} readOnly placeholder="Auto" className="mt-1 h-11 bg-muted/30" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="rounded-2xl border bg-emerald-50 p-4">
+                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(computedTotal, " ₹")}</div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
+
+              {isDepoFormOpen ? (
+                <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-depo-bill">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">New Depo Bill</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="secondary" onClick={closeDepoForm}><X className="h-4 w-4" /> Cancel</Button>
+                      <Button type="submit" form="form-new-depo-bill" disabled={!canSubmitDepo}><Plus className="h-4 w-4" /> Save</Button>
+                    </div>
+                  </div>
+                  <Separator className="my-4" />
+                  <form id="form-new-depo-bill" onSubmit={submitDepoBill} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-sm">Date</Label>
+                      <DateInput valueISO={depoDate} onChangeISO={setDepoDate} maxISO={todayISO()} inputTestId="input-depo-date" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Depo Group Name</Label>
+                      <Select value={depoGroupId} onValueChange={(v) => { setDepoGroupId(v); setDepoBankId("") }}>
+                        <SelectTrigger className="soft-ring mt-1 h-11">
+                          <SelectValue placeholder={depoGroups.length ? "Select depo group" : "No depo groups"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {depoGroups.length ? depoGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No depo groups available</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {depoNeedsBankSelect ? (
+                      <div>
+                        <Label className="text-sm">Bank</Label>
+                        <Select value={depoBankId} onValueChange={setDepoBankId}>
+                          <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select bank" /></SelectTrigger>
+                          <SelectContent>
+                            {(selectedDepoGroup?.banks || []).map((b) => (
+                              <SelectItem key={b.bankId} value={b.bankId}>{b.bankName}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border bg-muted/20 p-4">
+                        <div className="text-xs font-medium text-muted-foreground">Bank</div>
+                        <div className="mt-1 text-sm">{selectedDepoGroup ? "Not required (same rate)" : "Select a group first"}</div>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-sm">Client</Label>
+                      <Input value={selectedDepoClientName} readOnly placeholder="Auto selected" className="mt-1 h-11 bg-muted/30" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Agent</Label>
+                      <Select value={depoAgentId} onValueChange={setDepoAgentId}>
+                        <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select depositer agent" /></SelectTrigger>
+                        <SelectContent>{depositerAgents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Depo Amount</Label>
+                      <Input inputMode="decimal" value={depoAmount} onChange={(e) => setDepoAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Rate</Label>
+                      <Input value={depoRate ? formatMoney(depoRate, " ₹") : ""} readOnly placeholder="Auto" className="mt-1 h-11 bg-muted/30" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="rounded-2xl border bg-emerald-50 p-4">
+                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(depoTotal, " ₹")}</div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
+
+              {isClientOtherFormOpen ? (
+                <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-client-other-bill">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">New Client Other Bill</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Select group and enter amount.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="secondary" onClick={closeClientOtherForm}><X className="h-4 w-4" /> Cancel</Button>
+                      <Button type="submit" form="form-new-client-other-bill" disabled={!canSubmitClientOther}><Plus className="h-4 w-4" /> Save</Button>
+                    </div>
+                  </div>
+                  <Separator className="my-4" />
+                  <form id="form-new-client-other-bill" onSubmit={submitClientOtherBill} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-sm">Date</Label>
+                      <DateInput valueISO={clientOtherDate} onChangeISO={setClientOtherDate} maxISO={todayISO()} inputTestId="input-client-other-date" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Payment Group</Label>
+                      <Select value={clientOtherGroupId} onValueChange={setClientOtherGroupId}>
+                        <SelectTrigger className="soft-ring mt-1 h-11">
+                          <SelectValue placeholder={paymentGroups.length ? "Select payment group" : "No payment groups"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentGroups.length ? paymentGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No payment groups available</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Client</Label>
+                      <Input value={selectedClientOtherName} readOnly placeholder="Auto selected" className="mt-1 h-11 bg-muted/30" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Comment</Label>
+                      <Input value={clientOtherComment} onChange={(e) => setClientOtherComment(e.target.value)} placeholder="Type comment" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Amount</Label>
+                      <Input inputMode="decimal" value={clientOtherAmount} onChange={(e) => setClientOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="rounded-2xl border bg-emerald-50 p-4">
+                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(clientOtherTotal, " ₹")}</div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
+
+              {isAgentOtherFormOpen ? (
+                <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-agent-other-bill">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">New Agent Other Bill</div>
+                      <div className="mt-1 text-xs text-muted-foreground">Select agent and enter amount.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="secondary" onClick={closeAgentOtherForm}><X className="h-4 w-4" /> Cancel</Button>
+                      <Button type="submit" form="form-new-agent-other-bill" disabled={!canSubmitAgentOther}><Plus className="h-4 w-4" /> Save</Button>
+                    </div>
+                  </div>
+                  <Separator className="my-4" />
+                  <form id="form-new-agent-other-bill" onSubmit={submitAgentOtherBill} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-sm">Date</Label>
+                      <DateInput valueISO={agentOtherDate} onChangeISO={setAgentOtherDate} maxISO={todayISO()} inputTestId="input-agent-other-date" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Agent</Label>
+                      <Select value={agentOtherAgentId} onValueChange={setAgentOtherAgentId}>
+                        <SelectTrigger className="soft-ring mt-1 h-11">
+                          <SelectValue placeholder={agentUsers.length ? "Select agent" : "No agents"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {agentUsers.length ? agentUsers.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>) : <SelectItem value="__none__" disabled>No agents available</SelectItem>}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-sm">Comment</Label>
+                      <Input value={agentOtherComment} onChange={(e) => setAgentOtherComment(e.target.value)} placeholder="Type comment" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Amount</Label>
+                      <Input inputMode="decimal" value={agentOtherAmount} onChange={(e) => setAgentOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <div className="rounded-2xl border bg-emerald-50 p-4">
+                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(agentOtherTotal, " ₹")}</div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              ) : null}
 
               <div className="overflow-hidden rounded-xl shadow-sm bg-white" data-testid="table-bills">
                 <div className="overflow-x-auto">

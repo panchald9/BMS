@@ -166,6 +166,17 @@ const getUsersByRole = async (role) => {
   return result.rows;
 };
 
+const getAgentUsers = async () => {
+  const result = await pool.query(
+    `SELECT id, name, worktype, rate, agent_rates
+     FROM users
+     WHERE role <> 'admin'
+       AND COALESCE(TRIM(worktype), '') <> ''
+     ORDER BY id ASC`
+  );
+  return result.rows;
+};
+
 module.exports = {
   createUser,
   findUserByName,
@@ -177,5 +188,6 @@ module.exports = {
   getUserById,
   updateUserById,
   deleteUserById,
-  getUsersByRole
+  getUsersByRole,
+  getAgentUsers
 };

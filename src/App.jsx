@@ -31,8 +31,8 @@ function Router() {
       <Route path="/admin/users/new" component={CreateUserPage} />
       <Route path="/groups" component={GroupsPage} />
       <Route path="/groups/new" component={CreateGroupPage} />
-      <Route path="/groups/:id" component={GroupDetailsPage} />
       <Route path="/groups/edit/:id" component={EditGroupPage} />
+      <Route path="/groups/:id" component={GroupDetailsPage} />
       <Route path="/add-bill" component={AddBillPage} />
       <Route path="/processing-payment" component={ProcessingPaymentPage} />
       <Route path="/client-all-bills" component={ClientAllBillsPage} />
@@ -52,4 +52,3 @@ export default function App() {
     </QueryClientProvider>
   );
 }
-

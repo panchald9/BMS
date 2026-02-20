@@ -20,12 +20,18 @@ const initDb = async () => {
       name VARCHAR(100) NOT NULL,
       type VARCHAR(50),
       owner INTEGER NOT NULL,
+      same_rate NUMERIC(10,2),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_group_owner
         FOREIGN KEY (owner)
         REFERENCES users(id)
         ON DELETE CASCADE
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE groups
+    ADD COLUMN IF NOT EXISTS same_rate NUMERIC(10,2);
   `);
 
   await pool.query(`

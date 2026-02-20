@@ -90,6 +90,11 @@ export function getGroups() {
   return request("/groups");
 }
 
+export function getBillGroups(type) {
+  const params = new URLSearchParams({ type: String(type || "") });
+  return request(`/groups/bill-config?${params.toString()}`);
+}
+
 export function getGroupById(id) {
   return request(`/groups/${id}`);
 }
@@ -109,4 +114,11 @@ export function deleteGroup(id) {
   return request(`/groups/${id}`, {
     method: "DELETE",
   });
+}
+
+export function getAgentUsers(worktype) {
+  const params = new URLSearchParams();
+  if (worktype) params.set("worktype", String(worktype));
+  const query = params.toString();
+  return request(`/users/agents${query ? `?${query}` : ""}`);
 }
