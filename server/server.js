@@ -11,6 +11,11 @@ const groupAdminNumberRoutes = require('./routes/groupAdminNumberRoutes');
 const groupEmployeeNumberRoutes = require('./routes/groupEmployeeNumberRoutes');
 const billRoutes = require('./routes/billRoutes');
 const otherBillRoutes = require('./routes/otherBillRoutes');
+const paymentMethodRoutes = require('./routes/paymentMethodRoutes');
+const dollarRateRoutes = require('./routes/dollarRateRoutes');
+const transactionDetailRoutes = require('./routes/transactionDetailRoutes');
+const processingGroupCalculationRoutes = require('./routes/processingGroupCalculationRoutes');
+const processingCalculationRoutes = require('./routes/processingCalculationRoutes');
 const userModel = require('./models/userModel');
 const initDb = require('./config/initDb');
 
@@ -27,6 +32,11 @@ app.use('/api/group-admin-numbers', groupAdminNumberRoutes);
 app.use('/api/group-employee-numbers', groupEmployeeNumberRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/other-bills', otherBillRoutes);
+app.use('/api/payment-methods', paymentMethodRoutes);
+app.use('/api/dollar-rates', dollarRateRoutes);
+app.use('/api/transaction-details', transactionDetailRoutes);
+app.use('/api/processing-group-calculations', processingGroupCalculationRoutes);
+app.use('/api/processing-calculations', processingCalculationRoutes);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;

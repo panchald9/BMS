@@ -124,6 +124,67 @@ const initDb = async () => {
         FOREIGN KEY (agent_id) REFERENCES users(id)
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payment_methods (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS dollar_rate (
+      id SERIAL PRIMARY KEY,
+      rate_date DATE NOT NULL,
+      rate NUMERIC(12,4) NOT NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS transaction_details (
+      id SERIAL PRIMARY KEY,
+      transaction_date DATE NOT NULL,
+      payment_method_id INT NOT NULL,
+      amount NUMERIC(14,2) NOT NULL,
+      dollar_rate_id INT NOT NULL,
+      CONSTRAINT fk_transaction_payment_method
+        FOREIGN KEY (payment_method_id)
+        REFERENCES payment_methods(id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_transaction_dollar_rate
+        FOREIGN KEY (dollar_rate_id)
+        REFERENCES dollar_rate(id)
+        ON DELETE RESTRICT
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS processing_group_calculation (
+      id SERIAL PRIMARY KEY,
+      processing_percent NUMERIC(5,2) NOT NULL,
+      processing_group_id INT NOT NULL,
+      client_id INT NOT NULL,
+      processing_total NUMERIC(14,2),
+      CONSTRAINT fk_processing_group
+        FOREIGN KEY (processing_group_id)
+        REFERENCES groups(id)
+        ON DELETE CASCADE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS processing_calculation (
+      id SERIAL PRIMARY KEY,
+      processing_percent NUMERIC(5,2) NOT NULL,
+      processing_group_id INT NOT NULL,
+      client_id INT NOT NULL,
+      processing_total NUMERIC(14,2),
+      CONSTRAINT fk_processing_calc_group
+        FOREIGN KEY (processing_group_id)
+        REFERENCES groups(id)
+        ON DELETE CASCADE
+    );
+  `);
 };
 
 module.exports = initDb;

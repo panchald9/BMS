@@ -176,3 +176,143 @@ export function deleteOtherBill(id) {
     method: "DELETE",
   });
 }
+
+export function getPaymentMethods() {
+  return request("/payment-methods");
+}
+
+export function getPaymentMethodById(id) {
+  return request(`/payment-methods/${id}`);
+}
+
+export function createPaymentMethod(payload) {
+  return request("/payment-methods", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updatePaymentMethod(id, payload) {
+  return request(`/payment-methods/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePaymentMethod(id) {
+  return request(`/payment-methods/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function getDollarRates() {
+  return request("/dollar-rates");
+}
+
+export function getDollarRateById(id) {
+  return request(`/dollar-rates/${id}`);
+}
+
+export function createDollarRate(payload) {
+  return request("/dollar-rates", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateDollarRate(id, payload) {
+  return request(`/dollar-rates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteDollarRate(id) {
+  return request(`/dollar-rates/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function getTransactionDetails() {
+  return request("/transaction-details");
+}
+
+export function getTransactionDetailById(id) {
+  return request(`/transaction-details/${id}`);
+}
+
+export function createTransactionDetail(payload) {
+  return request("/transaction-details", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTransactionDetail(id, payload) {
+  return request(`/transaction-details/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteTransactionDetail(id) {
+  return request(`/transaction-details/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function getProcessingGroupCalculations() {
+  return request("/processing-group-calculations");
+}
+
+export function getProcessingGroupCalculationById(id) {
+  return request(`/processing-group-calculations/${id}`);
+}
+
+export function createProcessingGroupCalculation(payload) {
+  return request("/processing-group-calculations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProcessingGroupCalculation(id, payload) {
+  return request(`/processing-group-calculations/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProcessingGroupCalculation(id) {
+  return request(`/processing-group-calculations/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function getProcessingCalculations() {
+  return request("/processing-calculations");
+}
+
+export function getProcessingCalculationById(id) {
+  return request(`/processing-calculations/${id}`);
+}
+
+export function createProcessingCalculation(payload) {
+  return request("/processing-calculations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProcessingCalculation(id, payload) {
+  return request(`/processing-calculations/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProcessingCalculation(id) {
+  return request(`/processing-calculations/${id}`, {
+    method: "DELETE",
+  });
+}
