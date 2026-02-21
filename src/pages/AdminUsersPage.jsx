@@ -32,7 +32,6 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState("")
-  const [updatingId, setUpdatingId] = useState("")
 
   const canEditOrDelete = useMemo(() => users.length > 0, [users.length])
 
@@ -89,73 +88,8 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function handleEditUser(user) {
-    const token = localStorage.getItem("authToken")
-    if (!token) {
-      setLocation("/login")
-      return
-    }
-
-    const nextName = window.prompt("Name", user.name)
-    if (nextName === null) return
-    const nextEmail = window.prompt("Email", user.email)
-    if (nextEmail === null) return
-    const nextPhone = window.prompt("Phone", user.phone || "")
-    if (nextPhone === null) return
-    const nextRole = window.prompt("Role (Client/Agent/admin)", user.userType || "Client")
-    if (nextRole === null) return
-    const nextWorktype = window.prompt(
-      "Work types (comma-separated, e.g. Claimer,Depositer)",
-      user.workTypes.join(",")
-    )
-    if (nextWorktype === null) return
-
-    let nextRate = user.rate
-    const parsedWorktypes = parseWorkTypes(nextWorktype)
-    if (String(nextRole).trim().toLowerCase() === "agent") {
-      const currentRateObj = nextRate && typeof nextRate === "object" ? nextRate : {}
-      if (parsedWorktypes.includes("Claimer")) {
-        const claimer = window.prompt("Claimer Rate", String(currentRateObj.Claimer ?? "0"))
-        if (claimer === null) return
-        currentRateObj.Claimer = Number(claimer || 0)
-      }
-      if (parsedWorktypes.includes("Depositer")) {
-        const depositer = window.prompt("Depositer Rate", String(currentRateObj.Depositer ?? "0"))
-        if (depositer === null) return
-        currentRateObj.Depositer = Number(depositer || 0)
-      }
-      nextRate = currentRateObj
-    }
-
-    setUpdatingId(user.id)
-    try {
-      const payload = {
-        name: String(nextName).trim(),
-        email: String(nextEmail).trim().toLowerCase(),
-        phone: String(nextPhone).trim(),
-        role: String(nextRole).trim(),
-        worktype: String(nextWorktype).trim(),
-        rate: nextRate,
-      }
-
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-      const data = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(data?.message || "Failed to update user")
-
-      setUsers((prev) => prev.map((u) => (u.id === user.id ? toUiUser(data) : u)))
-      toast({ title: "User updated", description: `${payload.name} updated successfully.` })
-    } catch (error) {
-      toast({ title: "Update failed", description: error.message || "Unable to update user" })
-    } finally {
-      setUpdatingId("")
-    }
+  function handleEditUser(user) {
+    setLocation(`/admin/users/${user.id}/edit`)
   }
 
   return (
@@ -240,7 +174,7 @@ export default function AdminUsersPage() {
 
                           <Button
                             variant="secondary"
-                            disabled={!canEditOrDelete || updatingId === u.id}
+                            disabled={!canEditOrDelete}
                             onClick={() => {
                               handleEditUser(u)
                             }}
@@ -248,7 +182,7 @@ export default function AdminUsersPage() {
                             data-testid={`button-edit-user-${u.id}`}
                           >
                             <Pencil className="h-4 w-4" />
-                            {updatingId === u.id ? "Updating..." : "Edit"}
+                            Edit
                           </Button>
                           <Button
                             variant="secondary"

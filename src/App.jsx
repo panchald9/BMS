@@ -27,6 +27,7 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/banks" component={BanksPage} />
+      <Route path="/admin/users/:id/edit" component={CreateUserPage} />
       <Route path="/admin/users" component={AdminUsersPage} />
       <Route path="/admin/users/new" component={CreateUserPage} />
       <Route path="/groups" component={GroupsPage} />

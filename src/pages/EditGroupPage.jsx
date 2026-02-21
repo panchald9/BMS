@@ -20,6 +20,7 @@ import { getGroupFullData, getClientUsers, getBanks, updateGroup as updateGroupA
 import { useToast } from "../hooks/use-toast";
 
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"];
+const PHONE_MAX_LENGTH = 12;
 
 function cleanPhone(v) {
   return v.replace(/\s+/g, " ").trim();
@@ -155,10 +156,11 @@ export default function EditGroupPage() {
   }
 
   function updatePhone(list, index, value) {
+    const nextValue = value.slice(0, PHONE_MAX_LENGTH);
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();
-        next[index] = value;
+        next[index] = nextValue;
         return next;
       });
       return;
@@ -166,7 +168,7 @@ export default function EditGroupPage() {
 
     setEmployeePhones((prev) => {
       const next = prev.slice();
-      next[index] = value;
+      next[index] = nextValue;
       return next;
     });
   }
@@ -433,6 +435,7 @@ export default function EditGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
+                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("admin", idx, e.target.value)}
                             placeholder="Phone"
                             className="soft-ring h-11"
@@ -472,6 +475,7 @@ export default function EditGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
+                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("employee", idx, e.target.value)}
                             placeholder="Phone"
                             className="soft-ring h-11"

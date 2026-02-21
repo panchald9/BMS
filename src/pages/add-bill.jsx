@@ -38,7 +38,18 @@ import { Separator } from "../components/ui/Separator"
 import { DateInput } from "../components/ui/date-input"
 import { formatDateDDMMYYYY, parseDDMMYYYYToISO, todayISO } from "../lib/date"
 import { MOCK_CLIENTS } from "../lib/mock-data"
-import { createBill, deleteBill, getAgentUsers, getBillGroups, getBills, updateBill } from "../lib/api"
+import {
+  createBill,
+  createOtherBill,
+  deleteBill,
+  deleteOtherBill,
+  getAgentUsers,
+  getBillGroups,
+  getBills,
+  getOtherBills,
+  updateBill,
+  updateOtherBill
+} from "../lib/api"
 
 const TABS = ["Claim Bills", "Depo Bills", "Client Other Bill", "Agent Bill", "Agent Other Bill"]
 
@@ -218,12 +229,58 @@ export default function AddBillPage() {
     }
   }
 
+  function toClientOtherRowFromApi(row) {
+    const amountNum = Number(row.amount || 0)
+    return {
+      id: `co-${row.id}`,
+      date: normalizeDateValue(row.bill_date),
+      group: row.group_name || "-",
+      client: row.client_name || "-",
+      comment: row.comment || "-",
+      amount: `${amountNum.toFixed(2)} ₹`,
+      total: `${amountNum.toFixed(2)} ₹`,
+      _otherDbId: Number(row.id),
+      _otherKind: "client",
+      _groupId: row.group_id != null ? String(row.group_id) : "",
+      _clientId: row.client_id != null ? String(row.client_id) : "",
+      _agentId: row.agent_id != null ? String(row.agent_id) : "",
+      _amountNum: amountNum
+    }
+  }
+
+  function toAgentOtherRowFromApi(row) {
+    const amountNum = Number(row.amount || 0)
+    const agentName = row.agent_name || "-"
+    return {
+      id: `ao-${row.id}`,
+      date: normalizeDateValue(row.bill_date),
+      group: "-",
+      client: "-",
+      claimer: agentName,
+      agent: agentName,
+      comment: row.comment || "-",
+      bank: "-",
+      source: "-",
+      amount: `${amountNum.toFixed(2)} ₹`,
+      rate: "-",
+      total: `${amountNum.toFixed(2)} ₹`,
+      _otherDbId: Number(row.id),
+      _otherKind: "agent",
+      _groupId: row.group_id != null ? String(row.group_id) : "",
+      _clientId: row.client_id != null ? String(row.client_id) : "",
+      _agentId: row.agent_id != null ? String(row.agent_id) : "",
+      _amountNum: amountNum
+    }
+  }
+
   const [isClaimFormOpen, setIsClaimFormOpen] = useState(false)
   const [isDepoFormOpen, setIsDepoFormOpen] = useState(false)
   const [isClientOtherFormOpen, setIsClientOtherFormOpen] = useState(false)
   const [isAgentOtherFormOpen, setIsAgentOtherFormOpen] = useState(false)
   const [editingBillId, setEditingBillId] = useState(null)
   const [editingBillSource, setEditingBillSource] = useState("")
+  const [editingOtherBillId, setEditingOtherBillId] = useState(null)
+  const [editingOtherKind, setEditingOtherKind] = useState("")
 
   const agentUsers = useMemo(() => (agents.length ? agents : MOCK_AGENTS), [agents])
 
@@ -254,24 +311,36 @@ export default function AddBillPage() {
 
   function closeAgentOtherForm() {
     setIsAgentOtherFormOpen(false)
+    setEditingOtherBillId(null)
+    setEditingOtherKind("")
     resetAgentOtherForm()
   }
 
-  function submitAgentOtherBill(e) {
+  async function submitAgentOtherBill(e) {
     e.preventDefault()
     if (!canSubmitAgentOther) return
 
     const amountNum = Number(String(agentOtherAmount).trim())
-    const newRow = {
-      id: `ao-${uid()}`,
-      date: agentOtherDate.trim(),
-      agent: agentUsers.find((a) => a.id === agentOtherAgentId)?.name ?? "-",
-      comment: agentOtherComment.trim() || "-",
-      amount: `${amountNum.toFixed(2)} ₹`,
-      total: `${amountNum.toFixed(2)} ₹`,
+    const payload = {
+      kind: "agent",
+      bill_date: agentOtherDate.trim(),
+      agent_id: Number(agentOtherAgentId),
+      comment: agentOtherComment.trim(),
+      amount: amountNum
     }
 
-    setRows((prev) => [newRow, ...prev])
+    try {
+      if (editingOtherBillId && editingOtherKind === "agent") {
+        await updateOtherBill(editingOtherBillId, payload)
+      } else {
+        await createOtherBill(payload)
+      }
+      loadBillsForTab("Agent Other Bill")
+    } catch (error) {
+      console.error("Failed to save agent other bill:", error)
+      return
+    }
+
     closeAgentOtherForm()
   }
 
@@ -313,25 +382,37 @@ export default function AddBillPage() {
 
   function closeClientOtherForm() {
     setIsClientOtherFormOpen(false)
+    setEditingOtherBillId(null)
+    setEditingOtherKind("")
     resetClientOtherForm()
   }
 
-  function submitClientOtherBill(e) {
+  async function submitClientOtherBill(e) {
     e.preventDefault()
     if (!canSubmitClientOther) return
 
     const amountNum = Number(String(clientOtherAmount).trim())
-    const newRow = {
-      id: `o-${uid()}`,
-      date: clientOtherDate.trim(),
-      group: selectedPaymentGroup?.name ?? "-",
-      client: selectedClientOtherName || "-",
-      comment: clientOtherComment.trim() || "-",
-      amount: `${amountNum.toFixed(2)} ₹`,
-      total: `${amountNum.toFixed(2)} ₹`,
+    const payload = {
+      kind: "client",
+      bill_date: clientOtherDate.trim(),
+      group_id: Number(clientOtherGroupId),
+      client_id: Number(selectedPaymentGroup?.ownerClientId || 0),
+      comment: clientOtherComment.trim(),
+      amount: amountNum
     }
 
-    setRows((prev) => [newRow, ...prev])
+    try {
+      if (editingOtherBillId && editingOtherKind === "client") {
+        await updateOtherBill(editingOtherBillId, payload)
+      } else {
+        await createOtherBill(payload)
+      }
+      loadBillsForTab("Client Other Bill")
+    } catch (error) {
+      console.error("Failed to save client other bill:", error)
+      return
+    }
+
     closeClientOtherForm()
   }
 
@@ -424,7 +505,7 @@ export default function AddBillPage() {
       } else {
         await createBill(payload)
       }
-      loadBillsForTab("Depo Bills")
+      loadBillsForTab(tab === "Agent Bill" ? "Agent Bill" : "Depo Bills")
     } catch (error) {
       console.error("Failed to save depo bill:", error)
       return
@@ -542,7 +623,7 @@ export default function AddBillPage() {
       } else {
         await createBill(payload)
       }
-      loadBillsForTab("Claim Bills")
+      loadBillsForTab(tab === "Agent Bill" ? "Agent Bill" : "Claim Bills")
     } catch (error) {
       console.error("Failed to save claim bill:", error)
       return
@@ -582,30 +663,80 @@ export default function AddBillPage() {
 
   function rowsForTab(t) {
     if (t === "Depo Bills") return []
-    if (t === "Client Other Bill") return demoClientOtherRows
-    if (t === "Agent Bill") return agentBillRows
-    if (t === "Agent Other Bill") return demoClaimerOtherRows
+    if (t === "Client Other Bill") return []
+    if (t === "Agent Bill") return []
+    if (t === "Agent Other Bill") return []
     if (t === "Claim Bills") return []
     return demoClaimRows
   }
 
   function loadBillsForTab(currentTab) {
-    if (currentTab !== "Claim Bills" && currentTab !== "Depo Bills") return
-    const type = currentTab === "Depo Bills" ? "Depo" : "Claim"
+    if (currentTab === "Agent Bill") {
+      setIsBillsLoading(true)
+      Promise.all([getBills("Claim"), getBills("Depo")])
+        .then(([claimData, depoData]) => {
+          const merged = [
+            ...(Array.isArray(claimData) ? claimData : []),
+            ...(Array.isArray(depoData) ? depoData : [])
+          ]
+          setRows(merged.map(toBillRowFromApi))
+        })
+        .catch((error) => {
+          console.error("Failed to load agent bills:", error)
+          setRows([])
+        })
+        .finally(() => setIsBillsLoading(false))
+      return
+    }
+
     setIsBillsLoading(true)
-    getBills(type)
-      .then((data) => {
-        setRows(Array.isArray(data) ? data.map(toBillRowFromApi) : [])
-      })
-      .catch((error) => {
-        console.error("Failed to load bills:", error)
-        setRows([])
-      })
-      .finally(() => setIsBillsLoading(false))
+
+    if (currentTab === "Claim Bills" || currentTab === "Depo Bills") {
+      const type = currentTab === "Depo Bills" ? "Depo" : "Claim"
+      getBills(type)
+        .then((data) => {
+          setRows(Array.isArray(data) ? data.map(toBillRowFromApi) : [])
+        })
+        .catch((error) => {
+          console.error("Failed to load bills:", error)
+          setRows([])
+        })
+        .finally(() => setIsBillsLoading(false))
+      return
+    }
+
+    if (currentTab === "Client Other Bill") {
+      getOtherBills("client")
+        .then((data) => {
+          setRows(Array.isArray(data) ? data.map(toClientOtherRowFromApi) : [])
+        })
+        .catch((error) => {
+          console.error("Failed to load client other bills:", error)
+          setRows([])
+        })
+        .finally(() => setIsBillsLoading(false))
+      return
+    }
+
+    if (currentTab === "Agent Other Bill") {
+      getOtherBills("agent")
+        .then((data) => {
+          setRows(Array.isArray(data) ? data.map(toAgentOtherRowFromApi) : [])
+        })
+        .catch((error) => {
+          console.error("Failed to load agent other bills:", error)
+          setRows([])
+        })
+        .finally(() => setIsBillsLoading(false))
+      return
+    }
+
+    setRows([])
+    setIsBillsLoading(false)
   }
 
   async function handleDeleteRow(row) {
-    const isDbTab = tab === "Claim Bills" || tab === "Depo Bills"
+    const isDbTab = tab === "Claim Bills" || tab === "Depo Bills" || tab === "Agent Bill"
     if (isDbTab && row?._dbId) {
       try {
         await deleteBill(row._dbId)
@@ -619,11 +750,57 @@ export default function AddBillPage() {
       }
       return
     }
+
+    const isOtherDbTab = tab === "Client Other Bill" || tab === "Agent Other Bill"
+    if (isOtherDbTab && row?._otherDbId) {
+      try {
+        await deleteOtherBill(row._otherDbId)
+        if (editingOtherBillId && Number(editingOtherBillId) === Number(row._otherDbId)) {
+          setEditingOtherBillId(null)
+          setEditingOtherKind("")
+        }
+        loadBillsForTab(tab)
+      } catch (error) {
+        console.error("Failed to delete other bill:", error)
+      }
+      return
+    }
+
     setRows((prev) => prev.filter((x) => x.id !== row.id))
   }
 
   function handleEditRow(row) {
-    if (!(tab === "Claim Bills" || tab === "Depo Bills")) return
+    if (tab === "Client Other Bill") {
+      if (!row?._otherDbId) return
+      setEditingOtherBillId(Number(row._otherDbId))
+      setEditingOtherKind("client")
+      setIsClaimFormOpen(false)
+      setIsDepoFormOpen(false)
+      setIsAgentOtherFormOpen(false)
+      setIsClientOtherFormOpen(true)
+      setClientOtherDate(normalizeDateValue(row.date))
+      setClientOtherGroupId(String(row._groupId || ""))
+      setClientOtherComment(String(row.comment || ""))
+      setClientOtherAmount(String(row._amountNum ?? ""))
+      return
+    }
+
+    if (tab === "Agent Other Bill") {
+      if (!row?._otherDbId) return
+      setEditingOtherBillId(Number(row._otherDbId))
+      setEditingOtherKind("agent")
+      setIsClaimFormOpen(false)
+      setIsDepoFormOpen(false)
+      setIsClientOtherFormOpen(false)
+      setIsAgentOtherFormOpen(true)
+      setAgentOtherDate(normalizeDateValue(row.date))
+      setAgentOtherAgentId(String(row._agentId || ""))
+      setAgentOtherComment(String(row.comment || ""))
+      setAgentOtherAmount(String(row._amountNum ?? ""))
+      return
+    }
+
+    if (!(tab === "Claim Bills" || tab === "Depo Bills" || tab === "Agent Bill")) return
     if (!row?._dbId) return
 
     const source = row.source === "Depo" ? "Depo" : "Claim"
@@ -735,8 +912,11 @@ export default function AddBillPage() {
                           setIsClaimFormOpen(false)
                           setIsDepoFormOpen(false)
                           setIsClientOtherFormOpen(false)
+                          setIsAgentOtherFormOpen(false)
                           setEditingBillId(null)
                           setEditingBillSource("")
+                          setEditingOtherBillId(null)
+                          setEditingOtherKind("")
                         }}
                         testId={`tab-${t.toLowerCase().replace(/\s+/g, "-")}`}
                       />
@@ -833,6 +1013,9 @@ export default function AddBillPage() {
                         setIsClaimFormOpen(false)
                         setIsDepoFormOpen(false)
                         setIsAgentOtherFormOpen(false)
+                        setEditingOtherBillId(null)
+                        setEditingOtherKind("")
+                        resetClientOtherForm()
                         setIsClientOtherFormOpen(true)
                       }}
                       data-testid="button-new-client-other-bill"
@@ -845,6 +1028,9 @@ export default function AddBillPage() {
                         setIsClaimFormOpen(false)
                         setIsDepoFormOpen(false)
                         setIsClientOtherFormOpen(false)
+                        setEditingOtherBillId(null)
+                        setEditingOtherKind("")
+                        resetAgentOtherForm()
                         setIsAgentOtherFormOpen(true)
                       }}
                       data-testid="button-new-agent-other-bill"
@@ -1013,12 +1199,12 @@ export default function AddBillPage() {
                 <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-client-other-bill">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-sm font-semibold">New Client Other Bill</div>
+                      <div className="text-sm font-semibold">{editingOtherKind === "client" ? "Edit Client Other Bill" : "New Client Other Bill"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Select group and enter amount.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeClientOtherForm}><X className="h-4 w-4" /> Cancel</Button>
-                      <Button type="submit" form="form-new-client-other-bill" disabled={!canSubmitClientOther}><Plus className="h-4 w-4" /> Save</Button>
+                      <Button type="submit" form="form-new-client-other-bill" disabled={!canSubmitClientOther}><Plus className="h-4 w-4" /> {editingOtherKind === "client" ? "Update" : "Save"}</Button>
                     </div>
                   </div>
                   <Separator className="my-4" />
@@ -1064,12 +1250,12 @@ export default function AddBillPage() {
                 <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-agent-other-bill">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-sm font-semibold">New Agent Other Bill</div>
+                      <div className="text-sm font-semibold">{editingOtherKind === "agent" ? "Edit Agent Other Bill" : "New Agent Other Bill"}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Select agent and enter amount.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeAgentOtherForm}><X className="h-4 w-4" /> Cancel</Button>
-                      <Button type="submit" form="form-new-agent-other-bill" disabled={!canSubmitAgentOther}><Plus className="h-4 w-4" /> Save</Button>
+                      <Button type="submit" form="form-new-agent-other-bill" disabled={!canSubmitAgentOther}><Plus className="h-4 w-4" /> {editingOtherKind === "agent" ? "Update" : "Save"}</Button>
                     </div>
                   </div>
                   <Separator className="my-4" />
@@ -1109,77 +1295,165 @@ export default function AddBillPage() {
 
               <div className="overflow-hidden rounded-xl shadow-sm bg-white" data-testid="table-bills">
                 <div className="overflow-x-auto">
-                  <div className="min-w-full">
-                    <div className="grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
-                      <div className="text-center" data-testid="th-date">Date</div>
-                      <div className="text-left pl-4" data-testid="th-group">Group</div>
-                      <div className="text-left pl-4" data-testid="th-client">Client</div>
-                      <div className="text-left pl-4" data-testid="th-agent">Agent</div>
-                      <div className="text-center" data-testid="th-source">Source</div>
-                      <div className="text-center" data-testid="th-bank">Bank</div>
-                      <div className="text-right pr-4" data-testid="th-amount">Amount</div>
-                      <div className="text-right pr-4" data-testid="th-rate">Rate</div>
-                      <div className="text-right pr-4" data-testid="th-total">Total</div>
-                      <div className="text-center" data-testid="th-action">Action</div>
-                    </div>
-
-                    {rows.map((r, idx) => (
-                      <div
-                        key={r.id}
-                        className={
-                          "grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] items-center gap-2 border-t bg-white px-3 py-3 text-sm " +
-                          (idx % 2 === 0 ? "" : "bg-muted/5")
-                        }
-                        data-testid={`row-bill-${r.id}`}
-                      >
-                        <div className="text-xs text-foreground text-center" data-testid={`cell-date-${r.id}`}>
-                          {formatDateDDMMYYYY(normalizeDateValue(r.date))}
-                        </div>
-                        <div className="truncate text-xs text-left pl-4" data-testid={`cell-group-${r.id}`}>
-                          {r.group}
-                        </div>
-                        <div className="truncate text-xs text-left pl-4" data-testid={`cell-client-${r.id}`}>
-                          {r.client}
-                        </div>
-                        <div className="truncate text-xs text-left pl-4" data-testid={`cell-claimer-${r.id}`}>
-                          {r.claimer || r.agent || "-"}
-                        </div>
-                        <div className="truncate text-xs text-center" data-testid={`cell-source-${r.id}`}>
-                          {r.source || "-"}
-                        </div>
-                        <div className="truncate text-xs text-center" data-testid={`cell-bank-${r.id}`}>
-                          {r.bank || "-"}
-                        </div>
-                        <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-amount-${r.id}`}>
-                          {r.amount}
-                        </div>
-                        <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-rate-${r.id}`}>
-                          {r.rate}
-                        </div>
-                        <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-total-${r.id}`}>
-                          {r.total}
-                        </div>
-                        <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
-                          <button
-                            className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
-                            onClick={() => handleEditRow(r)}
-                            data-testid={`button-edit-bill-${r.id}`}
-                            type="button"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
-                            onClick={() => handleDeleteRow(r)}
-                            data-testid={`button-delete-bill-${r.id}`}
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                  {tab === "Client Other Bill" ? (
+                    <div className="min-w-full">
+                      <div className="grid grid-cols-[90px_1fr_1fr_1.5fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                        <div className="text-center">Date</div>
+                        <div className="text-left pl-4">Group</div>
+                        <div className="text-left pl-4">Client</div>
+                        <div className="text-left pl-4">Comment</div>
+                        <div className="text-right pr-4">Amount</div>
+                        <div className="text-right pr-4">Total</div>
+                        <div className="text-center">Action</div>
                       </div>
-                    ))}
-                  </div>
+                      {rows.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className={
+                            "grid grid-cols-[90px_1fr_1fr_1.5fr_100px_100px_70px] items-center gap-2 border-t bg-white px-3 py-3 text-sm " +
+                            (idx % 2 === 0 ? "" : "bg-muted/5")
+                          }
+                        >
+                          <div className="text-xs text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
+                          <div className="truncate text-xs text-left pl-4">{r.group || "-"}</div>
+                          <div className="truncate text-xs text-left pl-4">{r.client || "-"}</div>
+                          <div className="truncate text-xs text-left pl-4">{r.comment || "-"}</div>
+                          <div className="text-right text-xs tabular-nums pr-4">{r.amount}</div>
+                          <div className="text-right text-xs tabular-nums pr-4">{r.total}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
+                              onClick={() => handleEditRow(r)}
+                              type="button"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
+                              onClick={() => handleDeleteRow(r)}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : tab === "Agent Other Bill" ? (
+                    <div className="min-w-full">
+                      <div className="grid grid-cols-[90px_1.5fr_2fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                        <div className="text-center">Date</div>
+                        <div className="text-left pl-4">Agent</div>
+                        <div className="text-left pl-4">Comment</div>
+                        <div className="text-right pr-4">Amount</div>
+                        <div className="text-right pr-4">Total</div>
+                        <div className="text-center">Action</div>
+                      </div>
+                      {rows.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className={
+                            "grid grid-cols-[90px_1.5fr_2fr_100px_100px_70px] items-center gap-2 border-t bg-white px-3 py-3 text-sm " +
+                            (idx % 2 === 0 ? "" : "bg-muted/5")
+                          }
+                        >
+                          <div className="text-xs text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
+                          <div className="truncate text-xs text-left pl-4">{r.agent || r.claimer || "-"}</div>
+                          <div className="truncate text-xs text-left pl-4">{r.comment || "-"}</div>
+                          <div className="text-right text-xs tabular-nums pr-4">{r.amount}</div>
+                          <div className="text-right text-xs tabular-nums pr-4">{r.total}</div>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
+                              onClick={() => handleEditRow(r)}
+                              type="button"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
+                              onClick={() => handleDeleteRow(r)}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="min-w-full">
+                      <div className="grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                        <div className="text-center" data-testid="th-date">Date</div>
+                        <div className="text-left pl-4" data-testid="th-group">Group</div>
+                        <div className="text-left pl-4" data-testid="th-client">Client</div>
+                        <div className="text-left pl-4" data-testid="th-agent">Agent</div>
+                        <div className="text-center" data-testid="th-source">Source</div>
+                        <div className="text-center" data-testid="th-bank">Bank</div>
+                        <div className="text-right pr-4" data-testid="th-amount">Amount</div>
+                        <div className="text-right pr-4" data-testid="th-rate">Rate</div>
+                        <div className="text-right pr-4" data-testid="th-total">Total</div>
+                        {/* <div className="text-center" data-testid="th-action">Action</div> */}
+                      </div>
+
+                      {rows.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className={
+                            "grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] items-center gap-2 border-t bg-white px-3 py-3 text-sm " +
+                            (idx % 2 === 0 ? "" : "bg-muted/5")
+                          }
+                          data-testid={`row-bill-${r.id}`}
+                        >
+                          <div className="text-xs text-foreground text-center" data-testid={`cell-date-${r.id}`}>
+                            {formatDateDDMMYYYY(normalizeDateValue(r.date))}
+                          </div>
+                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-group-${r.id}`}>
+                            {r.group}
+                          </div>
+                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-client-${r.id}`}>
+                            {r.client}
+                          </div>
+                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-claimer-${r.id}`}>
+                            {r.claimer || r.agent || "-"}
+                          </div>
+                          <div className="truncate text-xs text-center" data-testid={`cell-source-${r.id}`}>
+                            {r.source || "-"}
+                          </div>
+                          <div className="truncate text-xs text-center" data-testid={`cell-bank-${r.id}`}>
+                            {r.bank || "-"}
+                          </div>
+                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-amount-${r.id}`}>
+                            {r.amount}
+                          </div>
+                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-rate-${r.id}`}>
+                            {r.rate}
+                          </div>
+                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-total-${r.id}`}>
+                            {r.total}
+                          </div>
+                          {/* <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
+                              onClick={() => handleEditRow(r)}
+                              data-testid={`button-edit-bill-${r.id}`}
+                              type="button"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
+                              onClick={() => handleDeleteRow(r)}
+                              data-testid={`button-delete-bill-${r.id}`}
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div> */}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {!rows.length && (

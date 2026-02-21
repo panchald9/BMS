@@ -38,6 +38,7 @@ import {
 } from "../components/ui/table"
 
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"]
+const PHONE_MAX_LENGTH = 12
 
 function uid() {
   return Math.random().toString(16).slice(2, 10)
@@ -146,7 +147,7 @@ export default function DashboardPage() {
   function updatePhone(list, index, value) {
     setDraft((d) => {
       const next = d[list].slice()
-      next[index] = value
+      next[index] = value.slice(0, PHONE_MAX_LENGTH)
       return { ...d, [list]: next }
     })
   }

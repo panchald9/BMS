@@ -103,6 +103,27 @@ const initDb = async () => {
     ALTER TABLE bill
     ALTER COLUMN bank_id DROP NOT NULL;
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS other_bill (
+      id SERIAL PRIMARY KEY,
+      kind VARCHAR(20) NOT NULL,
+      bill_date DATE NOT NULL,
+      group_id INTEGER,
+      client_id INTEGER,
+      agent_id INTEGER,
+      comment TEXT,
+      amount NUMERIC(12,2) NOT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT chk_other_bill_kind CHECK (LOWER(kind) IN ('client', 'agent')),
+      CONSTRAINT fk_other_bill_group
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+      CONSTRAINT fk_other_bill_client
+        FOREIGN KEY (client_id) REFERENCES users(id),
+      CONSTRAINT fk_other_bill_agent
+        FOREIGN KEY (agent_id) REFERENCES users(id)
+    );
+  `);
 };
 
 module.exports = initDb;

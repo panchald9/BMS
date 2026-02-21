@@ -149,3 +149,30 @@ export function deleteBill(id) {
     method: "DELETE",
   });
 }
+
+export function getOtherBills(kind) {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", String(kind));
+  const q = params.toString();
+  return request(`/other-bills${q ? `?${q}` : ""}`);
+}
+
+export function createOtherBill(payload) {
+  return request("/other-bills", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateOtherBill(id, payload) {
+  return request(`/other-bills/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteOtherBill(id) {
+  return request(`/other-bills/${id}`, {
+    method: "DELETE",
+  });
+}

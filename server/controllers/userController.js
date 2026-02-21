@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
+const PHONE_MAX_LENGTH = 12;
 
 function normalizeWorktype(value) {
   if (Array.isArray(value)) {
@@ -64,6 +65,10 @@ exports.registerUser = async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPhone = phone === undefined || phone === null ? '' : String(phone).trim();
+    if (normalizedPhone.length > PHONE_MAX_LENGTH) {
+      return res.status(400).json({ message: `phone must be at most ${PHONE_MAX_LENGTH} characters` });
+    }
 
     const existingByName = await userModel.findUserByName(name);
     if (existingByName) {
@@ -81,7 +86,7 @@ exports.registerUser = async (req, res) => {
       name,
       email: normalizedEmail,
       password: hashedPassword,
-      phone,
+      phone: normalizedPhone,
       worktype: normalizeWorktype(worktype),
       role,
       rate: normalizeRate(rate)
@@ -183,7 +188,13 @@ exports.updateUser = async (req, res) => {
     const updateFields = {};
 
     if (payload.name !== undefined) updateFields.name = String(payload.name).trim();
-    if (payload.phone !== undefined) updateFields.phone = String(payload.phone).trim();
+    if (payload.phone !== undefined) {
+      const normalizedPhone = String(payload.phone).trim();
+      if (normalizedPhone.length > PHONE_MAX_LENGTH) {
+        return res.status(400).json({ message: `phone must be at most ${PHONE_MAX_LENGTH} characters` });
+      }
+      updateFields.phone = normalizedPhone;
+    }
     if (payload.role !== undefined) updateFields.role = String(payload.role).trim();
     if (payload.worktype !== undefined) updateFields.worktype = normalizeWorktype(payload.worktype);
     if (payload.rate !== undefined) updateFields.rate = normalizeRate(payload.rate);

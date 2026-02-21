@@ -10,6 +10,7 @@ const groupBankRateRoutes = require('./routes/groupBankRateRoutes');
 const groupAdminNumberRoutes = require('./routes/groupAdminNumberRoutes');
 const groupEmployeeNumberRoutes = require('./routes/groupEmployeeNumberRoutes');
 const billRoutes = require('./routes/billRoutes');
+const otherBillRoutes = require('./routes/otherBillRoutes');
 const userModel = require('./models/userModel');
 const initDb = require('./config/initDb');
 
@@ -25,6 +26,7 @@ app.use('/api/group-bank-rates', groupBankRateRoutes);
 app.use('/api/group-admin-numbers', groupAdminNumberRoutes);
 app.use('/api/group-employee-numbers', groupEmployeeNumberRoutes);
 app.use('/api/bills', billRoutes);
+app.use('/api/other-bills', otherBillRoutes);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;

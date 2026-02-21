@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useRoute } from "wouter";
 import { ArrowLeft, Plus } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Button } from "../components/ui/button";
@@ -18,9 +18,18 @@ import { useUsersStore } from "../lib/users-store";
 import { useToast } from "../hooks/use-toast";
 
 const ALL_WORK_TYPES = ["Claimer", "Depositer"];
+const PHONE_MAX_LENGTH = 12;
+
+function parseWorkTypes(worktype) {
+  if (!worktype || typeof worktype !== "string") return [];
+  return worktype.split(",").map((w) => w.trim()).filter(Boolean);
+}
 
 export default function CreateUserPage() {
   const [, setLocation] = useLocation();
+  const [matchEditRoute, editParams] = useRoute("/admin/users/:id/edit");
+  const isEditMode = Boolean(matchEditRoute);
+  const editUserId = editParams?.id ?? "";
   const { createUser } = useUsersStore();
   const { toast } = useToast();
 
@@ -34,16 +43,68 @@ export default function CreateUserPage() {
   const [rateClaimer, setRateClaimer] = useState("");
   const [rateDepositer, setRateDepositer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
 
-  const canCreate = useMemo(() => {
-    if (!name.trim() || !email.trim() || !phone.trim() || !password.trim()) return false;
+  const canSubmit = useMemo(() => {
+    if (!name.trim() || !email.trim() || !phone.trim()) return false;
+    if (!isEditMode && !password.trim()) return false;
     if (userType === "Agent") {
       if (agentWorkTypes.length === 0) return false;
       if (agentWorkTypes.includes("Claimer") && !String(rateClaimer).trim()) return false;
       if (agentWorkTypes.includes("Depositer") && !String(rateDepositer).trim()) return false;
     }
     return true;
-  }, [name, email, phone, password, userType, agentWorkTypes, rateClaimer, rateDepositer]);
+  }, [name, email, phone, password, isEditMode, userType, agentWorkTypes, rateClaimer, rateDepositer]);
+
+  useEffect(() => {
+    if (!isEditMode || !editUserId) return;
+
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setLocation("/login");
+      return;
+    }
+
+    let active = true;
+    setIsLoadingUser(true);
+
+    fetch(`/api/users/${editUserId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.message || "Failed to load user");
+        if (!active || !data) return;
+
+        setName(data.name ?? "");
+        setEmail(data.email ?? "");
+        setPhone(String(data.phone ?? "").slice(0, PHONE_MAX_LENGTH));
+        setUserType(data.role ?? "Client");
+
+        const types = parseWorkTypes(data.worktype);
+        setAgentWorkTypes(types.length ? types : ["Claimer"]);
+
+        const rateObj = data.rate && typeof data.rate === "object" ? data.rate : {};
+        setRateClaimer(String(rateObj.Claimer ?? ""));
+        setRateDepositer(String(rateObj.Depositer ?? ""));
+      })
+      .catch((error) => {
+        if (!active) return;
+        toast({
+          title: "Load failed",
+          description: error.message || "Unable to load user",
+          variant: "destructive",
+        });
+        setLocation("/admin/users");
+      })
+      .finally(() => {
+        if (active) setIsLoadingUser(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isEditMode, editUserId, setLocation, toast]);
 
   function toggleWorkType(w) {
     setAgentWorkTypes((prev) => {
@@ -54,7 +115,7 @@ export default function CreateUserPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!canCreate || isSubmitting) return;
+    if (!canSubmit || isSubmitting || isLoadingUser) return;
 
     const token = localStorage.getItem("authToken");
     if (!token) {
@@ -69,7 +130,7 @@ export default function CreateUserPage() {
     const payload = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      phone: phone.trim(),
+      phone: phone.trim().slice(0, PHONE_MAX_LENGTH),
       password,
       role: userType,
       worktype: userType === "Agent" ? agentWorkTypes.join(",") : "",
@@ -80,12 +141,15 @@ export default function CreateUserPage() {
           }
         : { default: 0 },
     };
+    if (password.trim()) {
+      payload.password = password;
+    }
 
     try {
       setIsSubmitting(true);
 
-      const response = await fetch("/api/users/register", {
-        method: "POST",
+      const response = await fetch(isEditMode ? `/api/users/${editUserId}` : "/api/users/register", {
+        method: isEditMode ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -95,31 +159,35 @@ export default function CreateUserPage() {
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to create user");
+        throw new Error(data?.message || (isEditMode ? "Failed to update user" : "Failed to create user"));
       }
 
-      createUser({
-        id: String(data.id ?? ""),
-        name: data.name ?? payload.name,
-        email: data.email ?? payload.email,
-        phone: data.phone ?? payload.phone,
-        userType: data.role ?? payload.role,
-        workTypes: typeof data.worktype === "string" && data.worktype.trim()
-          ? data.worktype.split(",").map((w) => w.trim()).filter(Boolean)
-          : [],
-        agentRates: data.rate ?? payload.rate,
-      });
+      if (!isEditMode) {
+        createUser({
+          id: String(data.id ?? ""),
+          name: data.name ?? payload.name,
+          email: data.email ?? payload.email,
+          phone: data.phone ?? payload.phone,
+          userType: data.role ?? payload.role,
+          workTypes: typeof data.worktype === "string" && data.worktype.trim()
+            ? data.worktype.split(",").map((w) => w.trim()).filter(Boolean)
+            : [],
+          agentRates: data.rate ?? payload.rate,
+        });
+      }
 
       toast({
-        title: "User created",
-        description: `${payload.name} has been added successfully.`,
+        title: isEditMode ? "User updated" : "User created",
+        description: isEditMode
+          ? `${payload.name} has been updated successfully.`
+          : `${payload.name} has been added successfully.`,
       });
 
       setLocation("/admin/users");
     } catch (error) {
       toast({
-        title: "Create failed",
-        description: error.message || "Unable to create user",
+        title: isEditMode ? "Update failed" : "Create failed",
+        description: error.message || (isEditMode ? "Unable to update user" : "Unable to create user"),
       });
     } finally {
       setIsSubmitting(false);
@@ -141,7 +209,7 @@ export default function CreateUserPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-create-user-title">
-              Create New User
+              {isEditMode ? "Edit User" : "Create New User"}
             </h1>
           </div>
 
@@ -185,7 +253,8 @@ export default function CreateUserPage() {
                     id="user-phone"
                     inputMode="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    maxLength={PHONE_MAX_LENGTH}
+                    onChange={(e) => setPhone(e.target.value.slice(0, PHONE_MAX_LENGTH))}
                     placeholder="e.g., +92 300 1234567"
                     className="mt-1.5 h-11"
                     data-testid="input-user-phone"
@@ -194,14 +263,14 @@ export default function CreateUserPage() {
 
                 <div className="md:col-span-2">
                   <Label className="text-sm" htmlFor="user-pass" data-testid="label-user-password">
-                    Password
+                    {isEditMode ? "Password (Optional)" : "Password"}
                   </Label>
                   <Input
                     id="user-pass"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a password"
+                    placeholder={isEditMode ? "Leave blank to keep current password" : "Create a password"}
                     className="mt-1.5 h-11"
                     data-testid="input-user-password"
                   />
@@ -311,11 +380,11 @@ export default function CreateUserPage() {
                   type="submit"
                   size="lg"
                   className="px-8"
-                  disabled={!canCreate || isSubmitting}
+                  disabled={!canSubmit || isSubmitting || isLoadingUser}
                   data-testid="button-create-user"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  {isSubmitting ? "Creating..." : "Create User"}
+                  {isLoadingUser ? "Loading..." : isSubmitting ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save Changes" : "Create User")}
                 </Button>
               </div>
             </form>

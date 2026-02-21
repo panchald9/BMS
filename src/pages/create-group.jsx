@@ -20,6 +20,7 @@ import { getClientUsers, getBanks, createGroup, createGroupBankRate, createGroup
 import { useToast } from "../hooks/use-toast";
 
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"];
+const PHONE_MAX_LENGTH = 12;
 
 function uid() {
   return Math.random().toString(16).slice(2, 10);
@@ -118,10 +119,11 @@ export default function CreateGroupPage() {
   }
 
   function updatePhone(list, index, value) {
+    const nextValue = value.slice(0, PHONE_MAX_LENGTH);
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();
-        next[index] = value;
+        next[index] = nextValue;
         return next;
       });
       return;
@@ -129,7 +131,7 @@ export default function CreateGroupPage() {
 
     setEmployeePhones((prev) => {
       const next = prev.slice();
-      next[index] = value;
+      next[index] = nextValue;
       return next;
     });
   }
@@ -395,6 +397,7 @@ export default function CreateGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
+                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("admin", idx, e.target.value)}
                             placeholder="Phone"
                             className="soft-ring h-11"
@@ -434,6 +437,7 @@ export default function CreateGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
+                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("employee", idx, e.target.value)}
                             placeholder="Phone"
                             className="soft-ring h-11"
