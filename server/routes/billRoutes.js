@@ -5,9 +5,9 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/', authMiddleware, billController.getBills);
+router.get('/agent', authMiddleware, billController.getAgentBills);
 router.post('/', authMiddleware, billController.createBill);
 router.put('/:id', authMiddleware, billController.updateBill);
 router.delete('/:id', authMiddleware, billController.deleteBill);
 
 module.exports = router;
-

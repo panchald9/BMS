@@ -15,6 +15,15 @@ exports.getBills = async (req, res) => {
   }
 };
 
+exports.getAgentBills = async (_req, res) => {
+  try {
+    const rows = await billModel.getAgentBills();
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 exports.createBill = async (req, res) => {
   try {
     const {
@@ -111,4 +120,3 @@ exports.deleteBill = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-

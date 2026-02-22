@@ -143,6 +143,10 @@ export function getBills(type) {
   return request(`/bills${q ? `?${q}` : ""}`);
 }
 
+export function getAgentBills() {
+  return request("/bills/agent");
+}
+
 export function createBill(payload) {
   return request("/bills", {
     method: "POST",

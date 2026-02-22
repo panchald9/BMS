@@ -43,6 +43,7 @@ import {
   createOtherBill,
   deleteBill,
   deleteOtherBill,
+  getAgentBills,
   getAgentUsers,
   getBillGroups,
   getBills,
@@ -673,13 +674,9 @@ export default function AddBillPage() {
   function loadBillsForTab(currentTab) {
     if (currentTab === "Agent Bill") {
       setIsBillsLoading(true)
-      Promise.all([getBills("Claim"), getBills("Depo")])
-        .then(([claimData, depoData]) => {
-          const merged = [
-            ...(Array.isArray(claimData) ? claimData : []),
-            ...(Array.isArray(depoData) ? depoData : [])
-          ]
-          setRows(merged.map(toBillRowFromApi))
+      getAgentBills()
+        .then((data) => {
+          setRows(Array.isArray(data) ? data.map(toBillRowFromApi) : [])
         })
         .catch((error) => {
           console.error("Failed to load agent bills:", error)
@@ -1478,4 +1475,3 @@ export default function AddBillPage() {
   )
 }
  
-
