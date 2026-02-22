@@ -208,8 +208,10 @@ export default function AddBillPage() {
   function toBillRowFromApi(row) {
     const amountNum = Number(row.amount || 0)
     const rateNum = Number(row.rate || 0)
-    const totalNum = amountNum * rateNum
-    const source = String(row.group_type || "").toLowerCase() === "depo" ? "Depo" : "Claim"
+    const totalNum = Number(row.total ?? amountNum * rateNum)
+    const source =
+      String(row.source || "").trim() ||
+      (String(row.group_type || "").toLowerCase() === "depo" ? "Depo" : "Claim")
     return {
       id: String(row.id),
       date: normalizeDateValue(row.bill_date),
@@ -222,6 +224,7 @@ export default function AddBillPage() {
       total: `${totalNum.toFixed(2)} ₹`,
       source,
       _dbId: Number(row.id),
+      _billId: Number(row.bill_id || row.id),
       _groupId: row.group_id != null ? String(row.group_id) : "",
       _bankId: row.bank_id != null ? String(row.bank_id) : "",
       _clientId: row.client_id != null ? String(row.client_id) : "",
@@ -661,6 +664,10 @@ export default function AddBillPage() {
     if (tab === "Agent Other Bill") return "Agent Other Bill"
     return "Agent Other Bill"
   }, [tab])
+  const isAgentBillTab = tab === "Agent Bill"
+  const billTableGridCols = isAgentBillTab
+    ? "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px]"
+    : "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px]"
 
   function rowsForTab(t) {
     if (t === "Depo Bills") return []
@@ -736,8 +743,9 @@ export default function AddBillPage() {
     const isDbTab = tab === "Claim Bills" || tab === "Depo Bills" || tab === "Agent Bill"
     if (isDbTab && row?._dbId) {
       try {
-        await deleteBill(row._dbId)
-        if (editingBillId && Number(editingBillId) === Number(row._dbId)) {
+        const billId = row._billId || row._dbId
+        await deleteBill(billId)
+        if (editingBillId && Number(editingBillId) === Number(billId)) {
           setEditingBillId(null)
           setEditingBillSource("")
         }
@@ -1380,7 +1388,7 @@ export default function AddBillPage() {
                     </div>
                   ) : (
                     <div className="min-w-full">
-                      <div className="grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                      <div className={`grid ${billTableGridCols} gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80`}>
                         <div className="text-center" data-testid="th-date">Date</div>
                         <div className="text-left pl-4" data-testid="th-group">Group</div>
                         <div className="text-left pl-4" data-testid="th-client">Client</div>
@@ -1390,14 +1398,14 @@ export default function AddBillPage() {
                         <div className="text-right pr-4" data-testid="th-amount">Amount</div>
                         <div className="text-right pr-4" data-testid="th-rate">Rate</div>
                         <div className="text-right pr-4" data-testid="th-total">Total</div>
-                        {/* <div className="text-center" data-testid="th-action">Action</div> */}
+                        {!isAgentBillTab ? <div className="text-center" data-testid="th-action">Action</div> : null}
                       </div>
 
                       {rows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
-                            "grid grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px] items-center gap-2 border-t bg-white px-3 py-3 text-sm " +
+                            `grid ${billTableGridCols} items-center gap-2 border-t bg-white px-3 py-3 text-sm ` +
                             (idx % 2 === 0 ? "" : "bg-muted/5")
                           }
                           data-testid={`row-bill-${r.id}`}
@@ -1429,24 +1437,26 @@ export default function AddBillPage() {
                           <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-total-${r.id}`}>
                             {r.total}
                           </div>
-                          {/* <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
-                            <button
-                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
-                              onClick={() => handleEditRow(r)}
-                              data-testid={`button-edit-bill-${r.id}`}
-                              type="button"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
-                              onClick={() => handleDeleteRow(r)}
-                              data-testid={`button-delete-bill-${r.id}`}
-                              type="button"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div> */}
+                          {!isAgentBillTab ? (
+                            <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
+                              <button
+                                className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
+                                onClick={() => handleEditRow(r)}
+                                data-testid={`button-edit-bill-${r.id}`}
+                                type="button"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-red-600 transition hover:bg-red-50"
+                                onClick={() => handleDeleteRow(r)}
+                                data-testid={`button-delete-bill-${r.id}`}
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>

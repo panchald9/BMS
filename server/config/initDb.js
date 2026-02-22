@@ -105,6 +105,34 @@ const initDb = async () => {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS agent_bill (
+      id SERIAL PRIMARY KEY,
+      bill_id INTEGER NOT NULL UNIQUE,
+      bill_date DATE NOT NULL,
+      group_id INTEGER NOT NULL,
+      client_id INTEGER NOT NULL,
+      agent_id INTEGER NOT NULL,
+      source VARCHAR(20) NOT NULL,
+      bank_id INTEGER,
+      amount NUMERIC(12,2) NOT NULL,
+      rate NUMERIC(12,2) NOT NULL,
+      total NUMERIC(14,2) NOT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT chk_agent_bill_source CHECK (LOWER(source) IN ('claim', 'depo')),
+      CONSTRAINT fk_agent_bill_bill
+        FOREIGN KEY (bill_id) REFERENCES bill(id) ON DELETE CASCADE,
+      CONSTRAINT fk_agent_bill_group
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+      CONSTRAINT fk_agent_bill_bank
+        FOREIGN KEY (bank_id) REFERENCES banks(id),
+      CONSTRAINT fk_agent_bill_client
+        FOREIGN KEY (client_id) REFERENCES users(id),
+      CONSTRAINT fk_agent_bill_agent
+        FOREIGN KEY (agent_id) REFERENCES users(id)
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS other_bill (
       id SERIAL PRIMARY KEY,
       kind VARCHAR(20) NOT NULL,

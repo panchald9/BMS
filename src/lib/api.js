@@ -1,4 +1,17 @@
 const API_BASE = "/api";
+let isAuthRedirectInProgress = false;
+
+function handleAuthExpired() {
+  if (isAuthRedirectInProgress) return;
+  isAuthRedirectInProgress = true;
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("authUser");
+  if (window.location.pathname !== "/login") {
+    window.location.replace("/login");
+  } else {
+    isAuthRedirectInProgress = false;
+  }
+}
 
 function getAuthHeaders() {
   const token = localStorage.getItem("authToken");
@@ -20,6 +33,9 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      handleAuthExpired();
+    }
     throw new Error(data?.message || "Request failed");
   }
 
