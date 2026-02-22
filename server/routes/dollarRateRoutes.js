@@ -5,6 +5,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/', authMiddleware, dollarRateController.getDollarRates);
+router.get('/by-date', authMiddleware, dollarRateController.getDollarRateByDate);
 router.get('/:id', authMiddleware, dollarRateController.getDollarRateById);
 router.post('/', authMiddleware, dollarRateController.createDollarRate);
 router.put('/:id', authMiddleware, dollarRateController.updateDollarRate);

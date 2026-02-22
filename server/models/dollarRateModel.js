@@ -10,6 +10,17 @@ const getDollarRateById = async (id) => {
   return result.rows[0] || null;
 };
 
+const getDollarRateByDate = async (rate_date) => {
+  const result = await pool.query(
+    `SELECT * FROM dollar_rate
+     WHERE rate_date = $1
+     ORDER BY id DESC
+     LIMIT 1`,
+    [rate_date]
+  );
+  return result.rows[0] || null;
+};
+
 const createDollarRate = async ({ rate_date, rate }) => {
   const result = await pool.query(
     `INSERT INTO dollar_rate (rate_date, rate)
@@ -39,6 +50,7 @@ const deleteDollarRate = async (id) => {
 module.exports = {
   getAllDollarRates,
   getDollarRateById,
+  getDollarRateByDate,
   createDollarRate,
   updateDollarRate,
   deleteDollarRate

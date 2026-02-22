@@ -89,3 +89,17 @@ exports.getGroupsBillConfig = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+exports.getGroupClientOptionsByType = async (req, res) => {
+  try {
+    const type = String(req.query.type || '').trim();
+    if (!type) {
+      return res.status(400).json({ message: 'type query param is required' });
+    }
+
+    const groups = await groupModel.getGroupClientOptionsByType(type);
+    return res.json(groups);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

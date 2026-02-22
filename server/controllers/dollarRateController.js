@@ -24,6 +24,21 @@ exports.getDollarRateById = async (req, res) => {
   }
 };
 
+exports.getDollarRateByDate = async (req, res) => {
+  try {
+    const rateDate = String(req.query.date || '').trim();
+    if (!rateDate) {
+      return res.status(400).json({ message: 'date query param is required (YYYY-MM-DD)' });
+    }
+
+    const row = await dollarRateModel.getDollarRateByDate(rateDate);
+    if (!row) return res.status(404).json({ message: 'Dollar rate not found for the selected date' });
+    return res.json(row);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 exports.createDollarRate = async (req, res) => {
   try {
     const { rate_date, rate } = req.body || {};

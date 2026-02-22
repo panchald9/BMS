@@ -13,11 +13,29 @@ export function dateToISO(date) {
 }
 
 export function isoToDate(iso) {
-  if (!iso || typeof iso !== "string") return null;
-  const [year, month, day] = iso.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  const d = new Date(year, month - 1, day);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (!iso) return null;
+  if (iso instanceof Date) {
+    if (Number.isNaN(iso.getTime())) return null;
+    return new Date(iso.getFullYear(), iso.getMonth(), iso.getDate());
+  }
+  if (typeof iso !== "string") return null;
+
+  // Fast path for YYYY-MM-DD.
+  const strict = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (strict) {
+    const year = Number(strict[1]);
+    const month = Number(strict[2]);
+    const day = Number(strict[3]);
+    const d = new Date(year, month - 1, day);
+    if (Number.isNaN(d.getTime())) return null;
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+    return d;
+  }
+
+  // Fallback: accept ISO datetime values like 2026-02-22T00:00:00.000Z.
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 }
 
 export function formatDateDDMMYYYY(iso) {

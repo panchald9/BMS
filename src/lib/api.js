@@ -95,6 +95,19 @@ export function getBillGroups(type) {
   return request(`/groups/bill-config?${params.toString()}`);
 }
 
+export function getGroupClientOptionsByType(type) {
+  const params = new URLSearchParams({ type: String(type || "") });
+  return request(`/groups/client-options?${params.toString()}`).catch(async () => {
+    const rows = await request(`/groups/bill-config?${params.toString()}`);
+    return (rows || []).map((row) => ({
+      id: String(row.id),
+      name: row.name || "",
+      clientId: String(row.ownerClientId || ""),
+      clientName: row.ownerName || "",
+    }));
+  });
+}
+
 export function getGroupById(id) {
   return request(`/groups/${id}`);
 }
@@ -211,6 +224,11 @@ export function getDollarRates() {
 
 export function getDollarRateById(id) {
   return request(`/dollar-rates/${id}`);
+}
+
+export function getDollarRateByDate(dateISO) {
+  const params = new URLSearchParams({ date: String(dateISO || "") });
+  return request(`/dollar-rates/by-date?${params.toString()}`);
 }
 
 export function createDollarRate(payload) {

@@ -112,4 +112,31 @@ const getGroupsBillConfigByType = async (type) => {
   });
 };
 
-module.exports = { getAllGroups, getGroupById, createGroup, updateGroup, deleteGroup, getGroupFullData, getGroupsBillConfigByType };
+const getGroupClientOptionsByType = async (type) => {
+  const result = await pool.query(
+    `SELECT g.id, g.name, g.owner AS client_id, u.name AS client_name
+     FROM groups g
+     LEFT JOIN users u ON u.id = g.owner
+     WHERE LOWER(COALESCE(g.type, '')) = LOWER($1)
+     ORDER BY g.id ASC`,
+    [String(type || '').trim()]
+  );
+
+  return result.rows.map((row) => ({
+    id: String(row.id),
+    name: row.name || '',
+    clientId: row.client_id !== null && row.client_id !== undefined ? String(row.client_id) : '',
+    clientName: row.client_name || ''
+  }));
+};
+
+module.exports = {
+  getAllGroups,
+  getGroupById,
+  createGroup,
+  updateGroup,
+  deleteGroup,
+  getGroupFullData,
+  getGroupsBillConfigByType,
+  getGroupClientOptionsByType
+};
