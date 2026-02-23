@@ -212,16 +212,9 @@ export default function ClientAllBillsPage() {
   }, [selectedClientId, toast]);
 
   const baseRows = useMemo(() => mapRows(sections), [sections]);
-  const latestBillDateISO = useMemo(() => {
-    if (!baseRows.length) return "";
-    return baseRows.reduce((max, row) => {
-      const d = row.dateISO || "";
-      return d > max ? d : max;
-    }, "");
-  }, [baseRows]);
 
-  const filteredRows = useMemo(() => {
-    const tISO = latestBillDateISO || todayISO();
+  const selectedRange = useMemo(() => {
+    const tISO = todayISO();
     let fromISO = null;
     let toISO = null;
 
@@ -242,6 +235,12 @@ export default function ClientAllBillsPage() {
       fromISO = parseDDMMYYYYToISO(fromDDMMYYYY);
       toISO = parseDDMMYYYYToISO(toDDMMYYYY);
     }
+
+    return { fromISO, toISO };
+  }, [datePreset, fromDDMMYYYY, toDDMMYYYY]);
+
+  const filteredRows = useMemo(() => {
+    const { fromISO, toISO } = selectedRange;
 
     const searched = baseRows.filter((r) => {
       const q = search.trim().toLowerCase();
@@ -264,7 +263,7 @@ export default function ClientAllBillsPage() {
     });
 
     return ranged;
-  }, [baseRows, datePreset, fromDDMMYYYY, toDDMMYYYY, search, latestBillDateISO]);
+  }, [baseRows, search, selectedRange]);
 
   const sectioned = useMemo(() => {
     const map = new Map();
@@ -273,7 +272,7 @@ export default function ClientAllBillsPage() {
     return map;
   }, [filteredRows]);
 
-  const grandTotal = useMemo(
+  const selectedRangeTotals = useMemo(
     () =>
       filteredRows.reduce(
         (acc, r) => {
@@ -285,6 +284,19 @@ export default function ClientAllBillsPage() {
       ),
     [filteredRows]
   );
+
+  const pendingDue = useMemo(() => {
+    const { fromISO } = selectedRange;
+    if (!fromISO) return 0;
+    return baseRows.reduce((acc, r) => {
+      if (r.dateISO && r.dateISO < fromISO) {
+        return acc + num(r.totalInr);
+      }
+      return acc;
+    }, 0);
+  }, [baseRows, selectedRange]);
+
+  const grandTotalAmount = selectedRangeTotals.total + pendingDue;
 
   const totalsByType = useMemo(() => {
     const sums = {
@@ -303,6 +315,11 @@ export default function ClientAllBillsPage() {
     });
     return sums;
   }, [filteredRows]);
+
+  const selectedRangeLabel =
+    selectedRange.fromISO && selectedRange.toISO
+      ? `${formatDateDDMMYYYY(selectedRange.fromISO)} - ${formatDateDDMMYYYY(selectedRange.toISO)}`
+      : "All dates";
 
   return (
     <AppSidebar>
@@ -382,7 +399,7 @@ export default function ClientAllBillsPage() {
                   <div className="mt-1 text-xs text-muted-foreground">Showing separate tables for each bill type.</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{loading ? "Loading..." : `${grandTotal.count} rows`}</Badge>
+                  <Badge variant="secondary">{loading ? "Loading..." : `${selectedRangeTotals.count} rows`}</Badge>
                 </div>
               </div>
 
@@ -394,14 +411,14 @@ export default function ClientAllBillsPage() {
                 <div className="rounded-xl border bg-muted/20 px-4 py-3">
                   <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                     <div className="text-sm font-semibold">Grand Total</div>
-                    <div className="text-sm font-semibold">{money(grandTotal.total)}</div>
+                    <div className="text-sm font-semibold">{money(grandTotalAmount)}</div>
                   </div>
                   <div className="mt-3 rounded-xl border bg-white/70 p-3">
                     <div className="text-xs text-muted-foreground">Bill type totals</div>
                     <div className="mt-1 text-sm font-semibold">
-                      Claim Bills + Depo Bills + Processing Bills + Payment Bills + Other Bills = Grand Total
+                      Claim Bills + Depo Bills + Processing Bills + Payment Bills + Other Bills + Pending/Due = Grand Total
                     </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-5">
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-6">
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Claim</div>
                         <div className="font-semibold">{money(totalsByType.claim)}</div>
@@ -422,8 +439,27 @@ export default function ClientAllBillsPage() {
                         <div className="text-xs text-muted-foreground">Other</div>
                         <div className="font-semibold">{money(totalsByType.other)}</div>
                       </div>
+                      <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                        <div className="text-xs text-muted-foreground">Pending/Due</div>
+                        <div className="font-semibold">{money(pendingDue)}</div>
+                      </div>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">Showing totals for all bills.</div>
+                    {selectedRange.fromISO || selectedRange.toISO ? (
+                      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                        <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                          <div className="text-xs text-muted-foreground">Selected range</div>
+                          <div className="font-semibold">{selectedRangeLabel}</div>
+                          <div className="text-xs text-muted-foreground">Range total: {money(selectedRangeTotals.total)}</div>
+                        </div>
+                        <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                          <div className="text-xs text-muted-foreground">
+                            Pending / Due before {selectedRange.fromISO ? formatDateDDMMYYYY(selectedRange.fromISO) : "-"}
+                          </div>
+                          <div className="font-semibold">{money(pendingDue)}</div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -207,13 +207,8 @@ export default function AgentAllBillsPage() {
     return [...billRows, ...otherRows].sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
   }, [data]);
 
-  const latestBillDateISO = useMemo(() => {
-    if (!allRows.length) return "";
-    return allRows.reduce((max, row) => (row.dateISO > max ? row.dateISO : max), "");
-  }, [allRows]);
-
-  const filtered = useMemo(() => {
-    const tISO = latestBillDateISO || todayISO();
+  const selectedRange = useMemo(() => {
+    const tISO = todayISO();
     let fromISO = null;
     let toISO = null;
 
@@ -235,6 +230,11 @@ export default function AgentAllBillsPage() {
       toISO = parseDDMMYYYYToISO(toDDMMYYYY);
     }
 
+    return { fromISO, toISO };
+  }, [datePreset, fromDDMMYYYY, toDDMMYYYY]);
+
+  const filtered = useMemo(() => {
+    const { fromISO, toISO } = selectedRange;
     const q = search.trim().toLowerCase();
     return allRows.filter((r) => {
       if (fromISO && r.dateISO < fromISO) return false;
@@ -249,7 +249,7 @@ export default function AgentAllBillsPage() {
         formatDateDDMMYYYY(r.dateISO || "").includes(q)
       );
     });
-  }, [allRows, datePreset, fromDDMMYYYY, toDDMMYYYY, search, latestBillDateISO]);
+  }, [allRows, search, selectedRange]);
 
   const filteredAgentBills = useMemo(() => filtered.filter((x) => x.section === "bill"), [filtered]);
   const filteredAgentOtherBills = useMemo(() => filtered.filter((x) => x.section === "other"), [filtered]);
