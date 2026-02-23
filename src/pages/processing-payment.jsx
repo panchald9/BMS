@@ -95,7 +95,9 @@ function LogTable({ title, rows, groupHeader, pctHeader, totalHeader, onEdit, on
                   <div>{Number(row.total || 0).toFixed(2)}</div>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" onClick={() => onEdit(row)}>Edit</Button>
-                    <Button variant="ghost" disabled={busy} onClick={() => onDelete(row)}>Delete</Button>
+                    {onDelete ? (
+                      <Button variant="ghost" disabled={busy} onClick={() => onDelete(row)}>Delete</Button>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -145,14 +147,16 @@ export default function ProcessingPaymentPage() {
   const dollarRateNum = useMemo(() => Math.max(0, toNum(dollarRate)), [dollarRate]);
   const processingPctNum = useMemo(() => clampPct(processingPct), [processingPct]);
   const paymentPctNum = useMemo(() => clampPct(paymentGroupPct), [paymentGroupPct]);
+  const isPaymentPctGreaterThanProcessing = paymentPctNum > processingPctNum;
   const processingTotal = useMemo(() => amountUsdNum * (processingPctNum / 100) * dollarRateNum, [amountUsdNum, processingPctNum, dollarRateNum]);
   const paymentTotal = useMemo(() => ((amountUsdNum * dollarRateNum * paymentPctNum) / 100) * -1, [amountUsdNum, dollarRateNum, paymentPctNum]);
   const canSave = useMemo(() => {
     if (!date || !paymentTypeId || !dollarRateId || amountUsdNum <= 0) return false;
+    if (isPaymentPctGreaterThanProcessing) return false;
     if (editMode === "processing") return !!processingGroupId;
     if (editMode === "payment") return !!paymentGroupId;
     return !!processingGroupId && !!paymentGroupId;
-  }, [date, paymentTypeId, dollarRateId, amountUsdNum, processingGroupId, paymentGroupId, editMode]);
+  }, [date, paymentTypeId, dollarRateId, amountUsdNum, isPaymentPctGreaterThanProcessing, processingGroupId, paymentGroupId, editMode]);
 
   const processingRows = useMemo(() => {
     const n = Math.max(transactions.length, processingCalcs.length);
@@ -244,7 +248,19 @@ export default function ProcessingPaymentPage() {
     setDate(safeDate);
     if (!safeDate) { setDollarRate(""); setDollarRateId(""); return; }
     try {
+      const cached = dollarRateEntries.find((entry) => entry.date === safeDate);
+      if (cached) {
+        setDollarRate(String(cached.rate));
+        setDollarRateId(String(cached.id));
+        return;
+      }
       const row = await getDollarRateByDate(safeDate);
+      if (!row) {
+        setDollarRate("");
+        setDollarRateId("");
+        toast({ title: "Dollar rate not found", description: "Add a rate for the selected date in Dollar Rate tab.", variant: "destructive" });
+        return;
+      }
       setDollarRate(String(row.rate));
       setDollarRateId(String(row.id));
     } catch {
@@ -256,6 +272,10 @@ export default function ProcessingPaymentPage() {
   async function onSavePayment(e) {
     e.preventDefault();
     if (!canSave || busy) return;
+    if (isPaymentPctGreaterThanProcessing) {
+      toast({ title: "Validation error", description: "Payment Group % cannot be greater than Processing %.", variant: "destructive" });
+      return;
+    }
     try {
       setBusy(true);
       const txPayload = {
@@ -479,7 +499,7 @@ export default function ProcessingPaymentPage() {
                 <div className="h-px bg-border" />
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Processing Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div><Label>Processing %</Label><Input inputMode="decimal" value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
+                  <div><Label>Processing %</Label><Input inputMode="decimal" type="number"  value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
                   <div><Label>Processing Group</Label><Select value={processingGroupId} onValueChange={setProcessingGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{processingGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label>Client</Label><Input readOnly value={selectedProcessingGroup?.clientName || ""} /></div>
                   <div><Label>Processing Total (₹)</Label><Input readOnly value={processingTotal.toFixed(2)} /></div>
@@ -487,7 +507,13 @@ export default function ProcessingPaymentPage() {
                 <div className="h-px bg-border" />
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Payment Group Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div><Label>Payment Group %</Label><Input inputMode="decimal" value={paymentGroupPct} onChange={(e) => setPaymentGroupPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
+                  <div>
+                    <Label>Payment Group %</Label>
+                    <Input inputMode="decimal" type="number" value={paymentGroupPct} onChange={(e) => setPaymentGroupPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
+                    {isPaymentPctGreaterThanProcessing ? (
+                      <p className="mt-1 text-xs text-red-600">Payment Group % cannot be greater than Processing %.</p>
+                    ) : null}
+                  </div>
                   <div><Label>Payment Group</Label><Select value={paymentGroupId} onValueChange={setPaymentGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{paymentGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label>Client</Label><Input readOnly value={selectedPaymentGroup?.clientName || ""} /></div>
                   <div><Label>Payment Total (₹)</Label><Input readOnly value={paymentTotal.toFixed(2)} /></div>
@@ -533,13 +559,20 @@ export default function ProcessingPaymentPage() {
                 onDelete={async (row) => {
                   try {
                     setBusy(true);
+                    const txId = row.tx?.id ? String(row.tx.id) : "";
+                    const txIndex = txId ? transactions.findIndex((t) => String(t.id) === txId) : -1;
+                    const paymentCalc = txIndex >= 0 ? paymentCalcs[txIndex] : null;
                     if (row.tx?.id) {
                       await deleteTransactionDetail(row.tx.id);
-                      setTransactions((prev) => prev.filter((x) => x.id !== row.tx.id));
+                      setTransactions((prev) => prev.filter((x) => String(x.id) !== txId));
                     }
                     if (row.calc?.id) {
                       await deleteProcessingCalculation(row.calc.id);
                       setProcessingCalcs((prev) => prev.filter((x) => String(x.id) !== String(row.calc.id)));
+                    }
+                    if (paymentCalc?.id) {
+                      await deleteProcessingGroupCalculation(paymentCalc.id);
+                      setPaymentCalcs((prev) => prev.filter((x) => String(x.id) !== String(paymentCalc.id)));
                     }
                   } catch (e) {
                     toast({ title: "Delete failed", description: e.message, variant: "destructive" });
@@ -580,23 +613,6 @@ export default function ProcessingPaymentPage() {
                     setProcessingGroupId(processingCalc?.processing_group_id ? String(processingCalc.processing_group_id) : "");
                     setProcessingPct(String(processingCalc?.processing_percent || ""));
                     setActiveStep("Add Payment");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                onDelete={async (row) => {
-                  try {
-                    setBusy(true);
-                    if (row.tx?.id) {
-                      await deleteTransactionDetail(row.tx.id);
-                      setTransactions((prev) => prev.filter((x) => x.id !== row.tx.id));
-                    }
-                    if (row.calc?.id) {
-                      await deleteProcessingGroupCalculation(row.calc.id);
-                      setPaymentCalcs((prev) => prev.filter((x) => String(x.id) !== String(row.calc.id)));
-                    }
-                  } catch (e) {
-                    toast({ title: "Delete failed", description: e.message, variant: "destructive" });
                   } finally {
                     setBusy(false);
                   }

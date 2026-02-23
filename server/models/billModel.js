@@ -185,6 +185,167 @@ const getAgentBills = async () => {
   return result.rows;
 };
 
+const getClientAllBills = async (clientId) => {
+  const claimBillsResult = await pool.query(
+    `SELECT b.id,
+            b.bill_date,
+            g.name AS group_name,
+            c.name AS client_name,
+            bk.bank_name,
+            b.amount,
+            b.rate,
+            (COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
+     FROM bill b
+     JOIN groups g ON g.id = b.group_id
+     LEFT JOIN users c ON c.id = b.client_id
+     LEFT JOIN banks bk ON bk.id = b.bank_id
+     WHERE b.client_id = $1
+       AND LOWER(COALESCE(g.type, '')) = 'claim'
+     ORDER BY b.bill_date DESC, b.id DESC`,
+    [clientId]
+  );
+
+  const depoBillsResult = await pool.query(
+    `SELECT b.id,
+            b.bill_date,
+            g.name AS group_name,
+            c.name AS client_name,
+            bk.bank_name,
+            b.amount,
+            b.rate,
+            (COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
+     FROM bill b
+     JOIN groups g ON g.id = b.group_id
+     LEFT JOIN users c ON c.id = b.client_id
+     LEFT JOIN banks bk ON bk.id = b.bank_id
+     WHERE b.client_id = $1
+       AND LOWER(COALESCE(g.type, '')) = 'depo'
+     ORDER BY b.bill_date DESC, b.id DESC`,
+    [clientId]
+  );
+
+  const otherBillsResult = await pool.query(
+    `SELECT ob.id,
+            ob.bill_date,
+            g.name AS group_name,
+            c.name AS client_name,
+            ob.amount,
+            (COALESCE(ob.amount, 0) * -1) AS total
+     FROM other_bill ob
+     LEFT JOIN groups g ON g.id = ob.group_id
+     LEFT JOIN users c ON c.id = ob.client_id
+     WHERE ob.client_id = $1
+       AND LOWER(COALESCE(ob.kind, '')) = 'client'
+     ORDER BY ob.bill_date DESC, ob.id DESC`,
+    [clientId]
+  );
+
+  const processingBillsResult = await pool.query(
+    `WITH tx AS (
+       SELECT td.id,
+              td.transaction_date,
+              td.amount,
+              dr.rate AS dollar_rate,
+              pm.name AS payment_method_name
+       FROM transaction_details td
+       JOIN dollar_rate dr ON dr.id = td.dollar_rate_id
+       LEFT JOIN payment_methods pm ON pm.id = td.payment_method_id
+     )
+     SELECT pc.id,
+            tx.transaction_date AS bill_date,
+            g.name AS group_name,
+            c.name AS client_name,
+            tx.payment_method_name,
+            tx.amount,
+            tx.dollar_rate,
+            pc.processing_percent,
+            pc.processing_total AS total
+     FROM processing_calculation pc
+     LEFT JOIN tx ON tx.id = pc.id
+     LEFT JOIN groups g ON g.id = pc.processing_group_id
+     LEFT JOIN users c ON c.id = pc.client_id
+     WHERE pc.client_id = $1
+     ORDER BY pc.id DESC`,
+    [clientId]
+  );
+
+  const paymentBillsResult = await pool.query(
+    `WITH tx AS (
+       SELECT td.id,
+              td.transaction_date,
+              td.amount,
+              dr.rate AS dollar_rate,
+              pm.name AS payment_method_name
+       FROM transaction_details td
+       JOIN dollar_rate dr ON dr.id = td.dollar_rate_id
+       LEFT JOIN payment_methods pm ON pm.id = td.payment_method_id
+     )
+     SELECT pgc.id,
+            tx.transaction_date AS bill_date,
+            g.name AS group_name,
+            c.name AS client_name,
+            tx.payment_method_name,
+            tx.amount,
+            tx.dollar_rate,
+            pgc.processing_percent,
+            pgc.processing_total AS total
+     FROM processing_group_calculation pgc
+     LEFT JOIN tx ON tx.id = pgc.id
+     LEFT JOIN groups g ON g.id = pgc.processing_group_id
+     LEFT JOIN users c ON c.id = pgc.client_id
+     WHERE pgc.client_id = $1
+     ORDER BY pgc.id DESC`,
+    [clientId]
+  );
+
+  return {
+    claimBills: claimBillsResult.rows,
+    depoBills: depoBillsResult.rows,
+    otherBills: otherBillsResult.rows,
+    processingBills: processingBillsResult.rows,
+    paymentBills: paymentBillsResult.rows,
+  };
+};
+
+const getAgentAllBills = async (agentId) => {
+  const agentBillsResult = await pool.query(
+    `SELECT ab.id,
+            ab.bill_date,
+            ab.source,
+            g.name AS group_name,
+            c.name AS client_name,
+            bk.bank_name,
+            ab.amount,
+            ab.rate,
+            ab.total
+     FROM agent_bill ab
+     JOIN groups g ON g.id = ab.group_id
+     LEFT JOIN users c ON c.id = ab.client_id
+     LEFT JOIN banks bk ON bk.id = ab.bank_id
+     WHERE ab.agent_id = $1
+     ORDER BY ab.bill_date DESC, ab.id DESC`,
+    [agentId]
+  );
+
+  const agentOtherBillsResult = await pool.query(
+    `SELECT ob.id,
+            ob.bill_date,
+            ob.comment,
+            ob.amount,
+            (COALESCE(ob.amount, 0) * -1) AS total
+     FROM other_bill ob
+     WHERE ob.agent_id = $1
+       AND LOWER(COALESCE(ob.kind, '')) = 'agent'
+     ORDER BY ob.bill_date DESC, ob.id DESC`,
+    [agentId]
+  );
+
+  return {
+    agentBills: agentBillsResult.rows,
+    agentOtherBills: agentOtherBillsResult.rows,
+  };
+};
+
 const updateBill = async (id, { bill_date, group_id, bank_id, client_id, agent_id, amount, rate }) => {
   const client = await pool.connect();
   try {
@@ -225,6 +386,8 @@ module.exports = {
   createBill,
   getBills,
   getAgentBills,
+  getClientAllBills,
+  getAgentAllBills,
   updateBill,
   deleteBill
 };

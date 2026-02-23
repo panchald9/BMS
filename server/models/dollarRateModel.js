@@ -13,7 +13,8 @@ const getDollarRateById = async (id) => {
 const getDollarRateByDate = async (rate_date) => {
   const result = await pool.query(
     `SELECT * FROM dollar_rate
-     WHERE rate_date = $1
+     WHERE to_char(rate_date, 'YYYY-MM-DD') = $1
+        OR to_char(rate_date, 'DD-MM-YYYY') = $1
      ORDER BY id DESC
      LIMIT 1`,
     [rate_date]

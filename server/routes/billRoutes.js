@@ -6,6 +6,8 @@ const router = express.Router();
 
 router.get('/', authMiddleware, billController.getBills);
 router.get('/agent', authMiddleware, billController.getAgentBills);
+router.get('/client-all', authMiddleware, billController.getClientAllBills);
+router.get('/agent-all', authMiddleware, billController.getAgentAllBills);
 router.post('/', authMiddleware, billController.createBill);
 router.put('/:id', authMiddleware, billController.updateBill);
 router.delete('/:id', authMiddleware, billController.deleteBill);

@@ -24,6 +24,32 @@ exports.getAgentBills = async (_req, res) => {
   }
 };
 
+exports.getClientAllBills = async (req, res) => {
+  try {
+    const clientId = toNumber(req.query.client_id);
+    if (!Number.isInteger(clientId) || clientId <= 0) {
+      return res.status(400).json({ message: 'client_id query param is required' });
+    }
+    const data = await billModel.getClientAllBills(clientId);
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getAgentAllBills = async (req, res) => {
+  try {
+    const agentId = toNumber(req.query.agent_id);
+    if (!Number.isInteger(agentId) || agentId <= 0) {
+      return res.status(400).json({ message: 'agent_id query param is required' });
+    }
+    const data = await billModel.getAgentAllBills(agentId);
+    return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 exports.createBill = async (req, res) => {
   try {
     const {

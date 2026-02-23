@@ -136,9 +136,9 @@ export default function CreateUserPage() {
       worktype: userType === "Agent" ? agentWorkTypes.join(",") : "",
       rate: userType === "Agent"
         ? {
-            ...(agentWorkTypes.includes("Claimer") ? { Claimer: Number(rateClaimer || 0) } : {}),
-            ...(agentWorkTypes.includes("Depositer") ? { Depositer: Number(rateDepositer || 0) } : {}),
-          }
+          ...(agentWorkTypes.includes("Claimer") ? { Claimer: Number(rateClaimer || 0) } : {}),
+          ...(agentWorkTypes.includes("Depositer") ? { Depositer: Number(rateDepositer || 0) } : {}),
+        }
         : { default: 0 },
     };
     if (password.trim()) {
@@ -253,13 +253,28 @@ export default function CreateUserPage() {
                     id="user-phone"
                     inputMode="tel"
                     value={phone}
+                    type="tel"
                     maxLength={PHONE_MAX_LENGTH}
-                    onChange={(e) => setPhone(e.target.value.slice(0, PHONE_MAX_LENGTH))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow only numbers, + symbol, and spaces
+                      const filteredValue = value.replace(/[^0-9+\s]/g, '');
+                      setPhone(filteredValue.slice(0, PHONE_MAX_LENGTH));
+                    }}
+                    onKeyDown={(e) => {
+                      // Allow backspace, delete, tab, escape, enter, and arrow keys
+                      if ([8, 9, 27, 13, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+                      // Allow + symbol only at the beginning
+                      if (e.key === '+' && phone.length === 0) return;
+                      // Allow numbers and space
+                      if ((e.key >= '0' && e.key <= '9') || e.key === ' ') return;
+                      // Prevent all other characters
+                      e.preventDefault();
+                    }}
                     placeholder="e.g., +92 300 1234567"
                     className="mt-1.5 h-11"
                     data-testid="input-user-phone"
-                  />
-                </div>
+                  />                </div>
 
                 <div className="md:col-span-2">
                   <Label className="text-sm" htmlFor="user-pass" data-testid="label-user-password">

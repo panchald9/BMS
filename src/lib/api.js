@@ -163,6 +163,16 @@ export function getAgentBills() {
   return request("/bills/agent");
 }
 
+export function getClientAllBills(clientId) {
+  const params = new URLSearchParams({ client_id: String(clientId || "") });
+  return request(`/bills/client-all?${params.toString()}`);
+}
+
+export function getAgentAllBills(agentId) {
+  const params = new URLSearchParams({ agent_id: String(agentId || "") });
+  return request(`/bills/agent-all?${params.toString()}`);
+}
+
 export function createBill(payload) {
   return request("/bills", {
     method: "POST",
@@ -248,7 +258,23 @@ export function getDollarRateById(id) {
 
 export function getDollarRateByDate(dateISO) {
   const params = new URLSearchParams({ date: String(dateISO || "") });
-  return request(`/dollar-rates/by-date?${params.toString()}`);
+  return fetch(`${API_BASE}/dollar-rates/by-date?${params.toString()}`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  }).then(async (response) => {
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401) {
+        handleAuthExpired();
+      }
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(data?.message || "Request failed");
+    }
+    return data;
+  });
 }
 
 export function createDollarRate(payload) {
