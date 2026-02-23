@@ -1108,7 +1108,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Claim Amount</Label>
-                      <Input inputMode="decimal" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                      <Input inputMode="decimal" value={claimAmount} onChange={(e) => setClaimAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div>
                       <Label className="text-sm">Rate</Label>
@@ -1184,7 +1184,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Depo Amount</Label>
-                      <Input inputMode="decimal" value={depoAmount} onChange={(e) => setDepoAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                      <Input inputMode="decimal" value={depoAmount} onChange={(e) => setDepoAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div>
                       <Label className="text-sm">Rate</Label>
@@ -1239,7 +1239,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Amount</Label>
-                      <Input inputMode="decimal" value={clientOtherAmount} onChange={(e) => setClientOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                      <Input inputMode="decimal" value={clientOtherAmount} onChange={(e) => setClientOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
@@ -1286,7 +1286,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Amount</Label>
-                      <Input inputMode="decimal" value={agentOtherAmount} onChange={(e) => setAgentOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" />
+                      <Input inputMode="decimal" value={agentOtherAmount} onChange={(e) => setAgentOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">

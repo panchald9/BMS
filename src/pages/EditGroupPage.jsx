@@ -380,6 +380,7 @@ export default function EditGroupPage() {
                           placeholder="e.g., 25"
                           className={`soft-ring mt-1 h-11 ${rateErrors.same ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                           data-testid="input-rate-per-unit"
+                          onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                         />
                         {rateErrors.same ? (
                           <div className="mt-1 text-xs text-red-600" data-testid="error-rate-same">
@@ -403,6 +404,7 @@ export default function EditGroupPage() {
                                 placeholder="Rate"
                                 className={`soft-ring mt-2 h-11 ${hasError ? "border-red-300 focus-visible:ring-red-200" : ""}`}
                                 data-testid={`input-bank-rate-${b.id}`}
+                                onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                               />
                               {hasError && (
                                 <div className="mt-1 text-xs text-red-600" data-testid={`error-bank-rate-${b.id}`}>

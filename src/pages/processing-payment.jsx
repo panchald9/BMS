@@ -69,7 +69,7 @@ function LogTable({ title, rows, groupHeader, pctHeader, totalHeader, onEdit, on
     <div className="space-y-4">
       <div className="text-xl font-semibold">{title}</div>
       <div className="overflow-hidden rounded-xl border bg-white">
-        <div className="grid min-w-[1040px] grid-cols-[130px_120px_120px_180px_140px_120px_150px_180px] gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-semibold">
+        <div className="grid grid-cols-8 gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-semibold">
           <div>Date</div>
           <div>Amount ($)</div>
           <div>Rate (₹)</div>
@@ -81,11 +81,11 @@ function LogTable({ title, rows, groupHeader, pctHeader, totalHeader, onEdit, on
         </div>
         <div className="overflow-x-auto">
           {rows.length === 0 ? (
-            <div className="min-w-[1040px] px-4 py-8 text-center text-sm text-muted-foreground">No records found.</div>
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">No records found.</div>
           ) : (
             <div className="divide-y">
               {rows.map((row, idx) => (
-                <div key={`${row.tx?.id || "tx"}-${row.calc?.id || "calc"}-${idx}`} className="grid min-w-[1040px] grid-cols-[130px_120px_120px_180px_140px_120px_150px_180px] items-center gap-3 px-4 py-3 text-sm">
+                <div key={`${row.tx?.id || "tx"}-${row.calc?.id || "calc"}-${idx}`} className="grid grid-cols-8 items-center gap-3 px-4 py-3 text-sm">
                   <div>{row.dateISO ? formatDateDDMMYYYY(row.dateISO) : "-"}</div>
                   <div>{Number(row.amountUsd || 0).toFixed(2)}</div>
                   <div>{Number(row.rate || 0).toFixed(2)}</div>
@@ -137,6 +137,7 @@ export default function ProcessingPaymentPage() {
   const [editMode, setEditMode] = useState("");
   const [editingTxId, setEditingTxId] = useState("");
   const [editingCalcId, setEditingCalcId] = useState("");
+  const [editingPaymentCalcId, setEditingPaymentCalcId] = useState("");
 
   const selectedProcessingGroup = useMemo(() => processingGroups.find((g) => g.id === processingGroupId), [processingGroupId, processingGroups]);
   const selectedPaymentGroup = useMemo(() => paymentGroups.find((g) => g.id === paymentGroupId), [paymentGroupId, paymentGroups]);
@@ -169,7 +170,7 @@ export default function ProcessingPaymentPage() {
         groupName: group?.name || "",
         clientName: group?.clientName || "",
         percent: Number(calc?.processing_percent ?? tx?.processingPct ?? 0),
-        total: Number(calc?.processing_total ?? tx?.processingTotalInr ?? 0),
+        total: Number(calc?.processing_total ?? tx?.processingTotalInr ?? 0)
       };
     }).filter((r) => r.tx || r.calc);
   }, [transactions, processingCalcs, processingGroups]);
@@ -274,7 +275,8 @@ export default function ProcessingPaymentPage() {
           )
         );
 
-        if (editMode === "processing" && editingCalcId) {
+        // Update both processing and payment calculations
+        if (editingCalcId) {
           const updated = await updateProcessingCalculation(editingCalcId, {
             processing_percent: processingPctNum,
             processing_group_id: Number(processingGroupId),
@@ -284,14 +286,14 @@ export default function ProcessingPaymentPage() {
           setProcessingCalcs((prev) => prev.map((x) => (String(x.id) === String(editingCalcId) ? updated : x)));
         }
 
-        if (editMode === "payment" && editingCalcId) {
-          const updated = await updateProcessingGroupCalculation(editingCalcId, {
+        if (editingPaymentCalcId) {
+          const updated = await updateProcessingGroupCalculation(editingPaymentCalcId, {
             processing_percent: paymentPctNum,
             processing_group_id: Number(paymentGroupId),
             client_id: Number(selectedPaymentGroup?.clientId || 0),
             processing_total: paymentTotal,
           });
-          setPaymentCalcs((prev) => prev.map((x) => (String(x.id) === String(editingCalcId) ? updated : x)));
+          setPaymentCalcs((prev) => prev.map((x) => (String(x.id) === String(editingPaymentCalcId) ? updated : x)));
         }
       } else {
         const tx = await createTransactionDetail(txPayload);
@@ -327,9 +329,20 @@ export default function ProcessingPaymentPage() {
         setPaymentCalcs((prev) => [pgc, ...prev]);
       }
 
+      // Reset form fields
+      setDate("");
+      setPaymentTypeId("");
+      setAmountUsd("");
+      setDollarRate("");
+      setDollarRateId("");
+      setProcessingPct("");
+      setProcessingGroupId("");
+      setPaymentGroupPct("");
+      setPaymentGroupId("");
       setEditMode("");
       setEditingTxId("");
       setEditingCalcId("");
+      setEditingPaymentCalcId("");
       setActiveStep("Processing Details");
       toast({ title: "Saved", description: editMode ? "Transaction updated successfully." : "Transaction saved successfully." });
     } catch (e) {
@@ -342,7 +355,7 @@ export default function ProcessingPaymentPage() {
   return (
     <AppSidebar>
       <div className="min-h-svh w-full bg-background">
-        <div className="mx-auto w-full max-w-6xl px-6 py-8">
+        <div className="mx-auto w-full max-w-7xl px-6 py-8">
           <div className="flex items-end justify-between">
             <div>
               <h1 className="text-4xl font-semibold tracking-tight">Payment Processing</h1>
@@ -398,7 +411,7 @@ export default function ProcessingPaymentPage() {
               <div className="space-y-4">
                 <div className="text-xl font-semibold">Set Daily Dollar Rate</div>
                 <DateInput valueISO={dollarRateFormDate} onChangeISO={(iso) => setDollarRateFormDate(toISODateOnly(iso))} maxISO={todayISO()} />
-                <Input inputMode="decimal" value={dollarRateFormValue} onChange={(e) => setDollarRateFormValue(e.target.value)} placeholder="Dollar Rate" />
+                <Input inputMode="decimal" value={dollarRateFormValue} onChange={(e) => setDollarRateFormValue(e.target.value)} placeholder="Dollar Rate" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                 <div className="flex gap-3">
                   <Button className="w-full" disabled={busy} onClick={async () => {
                   const d = dollarRateFormDate.trim();
@@ -460,13 +473,13 @@ export default function ProcessingPaymentPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div><Label>Date</Label><Input type="date" value={date} onChange={(e) => onDateChange(e.target.value)} /></div>
                   <div><Label>Payment Type</Label><Select value={paymentTypeId} onValueChange={setPaymentTypeId}><SelectTrigger><SelectValue placeholder="Select Method..." /></SelectTrigger><SelectContent>{paymentMethods.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label>Amount ($)</Label><Input type="number" min={0} step="any" value={amountUsd} onChange={(e) => setAmountUsd(e.target.value)} /></div>
+                  <div><Label>Amount ($)</Label><Input type="number" min={0} step="any" value={amountUsd} onChange={(e) => setAmountUsd(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
                   <div><Label>Rate (₹)</Label><Input value={dollarRateNum > 0 ? dollarRateNum.toFixed(2) : ""} readOnly /></div>
                 </div>
                 <div className="h-px bg-border" />
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Processing Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div><Label>Processing %</Label><Input value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} /></div>
+                  <div><Label>Processing %</Label><Input inputMode="decimal" value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
                   <div><Label>Processing Group</Label><Select value={processingGroupId} onValueChange={setProcessingGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{processingGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label>Client</Label><Input readOnly value={selectedProcessingGroup?.clientName || ""} /></div>
                   <div><Label>Processing Total (₹)</Label><Input readOnly value={processingTotal.toFixed(2)} /></div>
@@ -474,7 +487,7 @@ export default function ProcessingPaymentPage() {
                 <div className="h-px bg-border" />
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Payment Group Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div><Label>Payment Group %</Label><Input value={paymentGroupPct} onChange={(e) => setPaymentGroupPct(e.target.value)} /></div>
+                  <div><Label>Payment Group %</Label><Input inputMode="decimal" value={paymentGroupPct} onChange={(e) => setPaymentGroupPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
                   <div><Label>Payment Group</Label><Select value={paymentGroupId} onValueChange={setPaymentGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{paymentGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label>Client</Label><Input readOnly value={selectedPaymentGroup?.clientName || ""} /></div>
                   <div><Label>Payment Total (₹)</Label><Input readOnly value={paymentTotal.toFixed(2)} /></div>
@@ -489,19 +502,33 @@ export default function ProcessingPaymentPage() {
                 pctHeader="Proc. %"
                 totalHeader="Processing Total (₹)"
                 busy={busy}
-                onEdit={(row) => {
-                  if (!row.tx) return;
-                  setEditMode("processing");
-                  setEditingTxId(String(row.tx.id || ""));
-                  setEditingCalcId(String(row.calc?.id || ""));
-                  setDate(toISODateOnly(row.tx.dateISO || ""));
-                  setPaymentTypeId(row.tx.paymentTypeId || "");
-                  setAmountUsd(String(row.tx.amountUsd || ""));
-                  setDollarRate(String(row.tx.dollarRate || ""));
-                  setDollarRateId(String(row.tx.dollarRateId || ""));
-                  setProcessingGroupId(row.calc?.processing_group_id ? String(row.calc.processing_group_id) : "");
-                  setProcessingPct(String(row.percent || ""));
-                  setActiveStep("Add Payment");
+                onEdit={async (row) => {
+                  if (!row.tx || !row.calc) return;
+                  try {
+                    setBusy(true);
+                    // Get the transaction index to find corresponding payment calc
+                    const txIndex = transactions.findIndex((t) => t.id === row.tx.id);
+                    const paymentCalc = txIndex >= 0 ? paymentCalcs[txIndex] : null;
+                    
+                    setEditMode("processing");
+                    setEditingTxId(String(row.tx.id || ""));
+                    setEditingCalcId(String(row.calc?.id || ""));
+                    setEditingPaymentCalcId(String(paymentCalc?.id || ""));
+                    setDate(toISODateOnly(row.tx.dateISO || ""));
+                    setPaymentTypeId(row.tx.paymentTypeId || "");
+                    setAmountUsd(String(row.tx.amountUsd || ""));
+                    setDollarRate(String(row.tx.dollarRate || ""));
+                    setDollarRateId(String(row.tx.dollarRateId || ""));
+                    // Set processing calc data
+                    setProcessingGroupId(row.calc?.processing_group_id ? String(row.calc.processing_group_id) : "");
+                    setProcessingPct(String(row.percent || ""));
+                    // Set payment calc data from the same index
+                    setPaymentGroupId(paymentCalc?.processing_group_id ? String(paymentCalc.processing_group_id) : "");
+                    setPaymentGroupPct(String(paymentCalc?.processing_percent || ""));
+                    setActiveStep("Add Payment");
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
                 onDelete={async (row) => {
                   try {
@@ -529,19 +556,33 @@ export default function ProcessingPaymentPage() {
                 pctHeader="Pay %"
                 totalHeader="Payment Total (₹)"
                 busy={busy}
-                onEdit={(row) => {
-                  if (!row.tx) return;
-                  setEditMode("payment");
-                  setEditingTxId(String(row.tx.id || ""));
-                  setEditingCalcId(String(row.calc?.id || ""));
-                  setDate(toISODateOnly(row.tx.dateISO || ""));
-                  setPaymentTypeId(row.tx.paymentTypeId || "");
-                  setAmountUsd(String(row.tx.amountUsd || ""));
-                  setDollarRate(String(row.tx.dollarRate || ""));
-                  setDollarRateId(String(row.tx.dollarRateId || ""));
-                  setPaymentGroupId(row.calc?.processing_group_id ? String(row.calc.processing_group_id) : "");
-                  setPaymentGroupPct(String(row.percent || ""));
-                  setActiveStep("Add Payment");
+                onEdit={async (row) => {
+                  if (!row.tx || !row.calc) return;
+                  try {
+                    setBusy(true);
+                    // Get the transaction index to find corresponding processing calc
+                    const txIndex = transactions.findIndex((t) => t.id === row.tx.id);
+                    const processingCalc = txIndex >= 0 ? processingCalcs[txIndex] : null;
+                    
+                    setEditMode("payment");
+                    setEditingTxId(String(row.tx.id || ""));
+                    setEditingCalcId(String(processingCalc?.id || ""));
+                    setEditingPaymentCalcId(String(row.calc?.id || ""));
+                    setDate(toISODateOnly(row.tx.dateISO || ""));
+                    setPaymentTypeId(row.tx.paymentTypeId || "");
+                    setAmountUsd(String(row.tx.amountUsd || ""));
+                    setDollarRate(String(row.tx.dollarRate || ""));
+                    setDollarRateId(String(row.tx.dollarRateId || ""));
+                    // Set payment calc data
+                    setPaymentGroupId(row.calc?.processing_group_id ? String(row.calc.processing_group_id) : "");
+                    setPaymentGroupPct(String(row.percent || ""));
+                    // Set processing calc data from the same index
+                    setProcessingGroupId(processingCalc?.processing_group_id ? String(processingCalc.processing_group_id) : "");
+                    setProcessingPct(String(processingCalc?.processing_percent || ""));
+                    setActiveStep("Add Payment");
+                  } finally {
+                    setBusy(false);
+                  }
                 }}
                 onDelete={async (row) => {
                   try {

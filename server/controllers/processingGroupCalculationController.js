@@ -32,18 +32,22 @@ exports.getProcessingGroupCalculationById = async (req, res) => {
 
 exports.createProcessingGroupCalculation = async (req, res) => {
   try {
-    const { processing_percent, processing_group_id, client_id, processing_total } = req.body || {};
+    const { transaction_id, processing_percent, processing_group_id, client_id, processing_total } = req.body || {};
     if (processing_percent === undefined || processing_group_id === undefined || client_id === undefined) {
       return res.status(400).json({ message: 'processing_percent, processing_group_id and client_id are required' });
     }
 
     const payload = {
+      transaction_id: toOptionalNumber(transaction_id),
       processing_percent: toNumber(processing_percent),
       processing_group_id: toNumber(processing_group_id),
       client_id: toNumber(client_id),
       processing_total: toOptionalNumber(processing_total)
     };
 
+    if (payload.transaction_id !== null && (!Number.isInteger(payload.transaction_id) || payload.transaction_id <= 0)) {
+      return res.status(400).json({ message: 'Invalid transaction_id' });
+    }
     if (!Number.isFinite(payload.processing_percent)) {
       return res.status(400).json({ message: 'Invalid processing_percent' });
     }
@@ -66,18 +70,22 @@ exports.createProcessingGroupCalculation = async (req, res) => {
 
 exports.updateProcessingGroupCalculation = async (req, res) => {
   try {
-    const { processing_percent, processing_group_id, client_id, processing_total } = req.body || {};
+    const { transaction_id, processing_percent, processing_group_id, client_id, processing_total } = req.body || {};
     if (processing_percent === undefined || processing_group_id === undefined || client_id === undefined) {
       return res.status(400).json({ message: 'processing_percent, processing_group_id and client_id are required' });
     }
 
     const payload = {
+      transaction_id: toOptionalNumber(transaction_id),
       processing_percent: toNumber(processing_percent),
       processing_group_id: toNumber(processing_group_id),
       client_id: toNumber(client_id),
       processing_total: toOptionalNumber(processing_total)
     };
 
+    if (payload.transaction_id !== null && (!Number.isInteger(payload.transaction_id) || payload.transaction_id <= 0)) {
+      return res.status(400).json({ message: 'Invalid transaction_id' });
+    }
     if (!Number.isFinite(payload.processing_percent)) {
       return res.status(400).json({ message: 'Invalid processing_percent' });
     }

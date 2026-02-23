@@ -351,6 +351,7 @@ export default function CreateUserPage() {
                           placeholder="0.00"
                           className="mt-1.5 h-11"
                           data-testid="input-claimer-rate"
+                          onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                         />
                       </div>
                     ) : null}
@@ -368,6 +369,7 @@ export default function CreateUserPage() {
                           placeholder="0.00"
                           className="mt-1.5 h-11"
                           data-testid="input-depositer-rate"
+                          onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                         />
                       </div>
                     ) : null}

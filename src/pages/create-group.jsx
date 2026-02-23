@@ -356,6 +356,7 @@ export default function CreateGroupPage() {
                           placeholder="e.g., 25"
                           className="soft-ring mt-1 h-11"
                           data-testid="input-rate-per-unit"
+                          onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                         />
                       </div>
                     ) : (
@@ -375,6 +376,7 @@ export default function CreateGroupPage() {
                                 placeholder="Rate"
                                 className="soft-ring mt-2 h-11"
                                 data-testid={`input-bank-rate-${b.id}`}
+                                onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
                               />
                             </div>
                           ))
