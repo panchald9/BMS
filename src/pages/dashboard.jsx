@@ -1,33 +1,11 @@
-import { useMemo, useState } from "react"
-import { useLocation } from "wouter"
-import {
-  BadgeDollarSign,
-  Building2,
-  CreditCard,
-  Layers,
-  Settings,
-  Users,
-  Wallet,
-  Plus,
-  Trash2,
-  Phone,
-} from "lucide-react"
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
+import { BadgeDollarSign, Users, Wallet } from "lucide-react";
 
-import AppSidebar from "../components/AppSidebar"
-import { Badge } from "../components/ui/Badge"
-import { Button } from "../components/ui/button"
-import { Card } from "../components/ui/Card"
-import { Input } from "../components/ui/input"
-import { Label } from "../components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/Select"
-import { Separator } from "../components/ui/Separator"
-import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group"
+import AppSidebar from "../components/AppSidebar";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/Card";
 import {
   Table,
   TableBody,
@@ -35,22 +13,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../components/ui/table"
-
-const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"]
-const PHONE_MAX_LENGTH = 12
-
-function uid() {
-  return Math.random().toString(16).slice(2, 10)
-}
-
-function cleanPhone(v) {
-  return v.replace(/\s+/g, " ").trim()
-}
-
-function isClaimOrDepo(t) {
-  return t === "Claim" || t === "Depo"
-}
+} from "../components/ui/table";
+import { getAgentBills, getAgentUsers, getBills, getClientUsers, getOtherBills } from "../lib/api";
+import { formatDateDDMMYYYY, startOfMonthISO, todayISO } from "../lib/date";
+import { useToast } from "../hooks/use-toast";
 
 function StatCard({ icon, title, value, subtitle, testId }) {
   return (
@@ -72,148 +38,150 @@ function StatCard({ icon, title, value, subtitle, testId }) {
         </div>
       </div>
     </Card>
-  )
+  );
+}
+
+function asISO(value) {
+  if (!value) return "";
+  const s = String(value);
+  const dmy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return iso ? iso[1] : "";
+}
+
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function money(value) {
+  return `$${toNumber(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function DashboardPage() {
-  const [, setLocation] = useLocation()
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const [banks] = useState([])
-  const [users] = useState([])
+  const [clients, setClients] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [clientOtherBills, setClientOtherBills] = useState([]);
+  const [agentBills, setAgentBills] = useState([]);
 
-  const clients = useMemo(() => users.filter((u) => u.userType === "Client"), [users])
+  useEffect(() => {
+    let mounted = true;
 
-  const [bankName, setBankName] = useState("")
+    (async () => {
+      try {
+        const [clientRows, agentRows, billRows, clientOtherRows, agentBillRows] = await Promise.all([
+          getClientUsers(),
+          getAgentUsers(),
+          getBills(),
+          getOtherBills("client"),
+          getAgentBills(),
+        ]);
+        if (!mounted) return;
+        setClients(Array.isArray(clientRows) ? clientRows : []);
+        setAgents(Array.isArray(agentRows) ? agentRows : []);
+        setBills(Array.isArray(billRows) ? billRows : []);
+        setClientOtherBills(Array.isArray(clientOtherRows) ? clientOtherRows : []);
+        setAgentBills(Array.isArray(agentBillRows) ? agentBillRows : []);
+      } catch (error) {
+        if (!mounted) return;
+        toast({
+          title: "Load failed",
+          description: error?.message || "Unable to load dashboard data",
+          variant: "destructive",
+        });
+      }
+    })();
 
-  const [groups, setGroups] = useState([])
-  const [draft, setDraft] = useState({
-    name: "",
-    groupType: "Claim",
-    ownerClientId: clients[0]?.id ?? "",
-    rateMode: "same",
-    sameRate: "",
-    perBankRates: {},
-    adminPhones: [""],
-    employeePhones: [""],
-  })
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
 
-  const canAddBank = useMemo(() => bankName.trim().length > 0, [bankName])
+  const topClients = useMemo(() => {
+    const map = new Map(
+      clients.map((c) => [
+        String(c.id),
+        {
+          id: String(c.id),
+          name: c.name || "-",
+          total: 0,
+          lastDateISO: "",
+        },
+      ])
+    );
 
-  const canCreateGroup = useMemo(() => {
-    if (!draft.name.trim()) return false
-    if (!draft.ownerClientId) return false
-
-    if (isClaimOrDepo(draft.groupType)) {
-      if (draft.rateMode === "same") {
-        if (!draft.sameRate.trim()) return false
-      } else {
-        if (banks.length === 0) return false
-        const hasAnyRate = banks.some((b) => (draft.perBankRates[b.id] ?? "").trim().length > 0)
-        if (!hasAnyRate) return false
+    for (const row of bills) {
+      const key = String(row.client_id ?? "");
+      const current = map.get(key);
+      if (!current) continue;
+      const total = toNumber(row.total || toNumber(row.amount) * toNumber(row.rate));
+      const dateISO = asISO(row.bill_date);
+      current.total += total;
+      if (dateISO && (!current.lastDateISO || dateISO > current.lastDateISO)) {
+        current.lastDateISO = dateISO;
       }
     }
 
-    const anyAdminPhone = draft.adminPhones.some((p) => cleanPhone(p).length > 0)
-    const anyEmpPhone = draft.employeePhones.some((p) => cleanPhone(p).length > 0)
-    if (!anyAdminPhone && !anyEmpPhone) return false
-
-    return true
-  }, [draft, banks])
-
-  function setGroupType(next) {
-    setDraft((d) => {
-      const nextDraft = { ...d, groupType: next }
-      if (!isClaimOrDepo(next)) {
-        nextDraft.rateMode = "same"
-        nextDraft.sameRate = ""
-        nextDraft.perBankRates = {}
-      }
-      return nextDraft
-    })
-  }
-
-  function addPhone(list) {
-    setDraft((d) => ({ ...d, [list]: [...d[list], ""] }))
-  }
-
-  function removePhone(list, index) {
-    setDraft((d) => {
-      const next = d[list].slice()
-      next.splice(index, 1)
-      return { ...d, [list]: next.length ? next : [""] }
-    })
-  }
-
-  function updatePhone(list, index, value) {
-    setDraft((d) => {
-      const next = d[list].slice()
-      next[index] = value.slice(0, PHONE_MAX_LENGTH)
-      return { ...d, [list]: next }
-    })
-  }
-
-  function createGroup(e) {
-    e.preventDefault()
-    if (!canCreateGroup) return
-
-    const g = {
-      id: `g-${uid()}`,
-      name: draft.name.trim(),
-      groupType: draft.groupType,
-      ownerClientId: draft.ownerClientId,
-      adminPhones: draft.adminPhones.map(cleanPhone).filter(Boolean),
-      employeePhones: draft.employeePhones.map(cleanPhone).filter(Boolean),
-    }
-
-    if (isClaimOrDepo(draft.groupType)) {
-      g.rateMode = draft.rateMode
-      if (draft.rateMode === "same") {
-        g.sameRate = draft.sameRate.trim()
-      } else {
-        const filtered = {}
-        for (const b of banks) {
-          const v = (draft.perBankRates[b.id] ?? "").trim()
-          if (v) filtered[b.id] = v
-        }
-        g.perBankRates = filtered
+    for (const row of clientOtherBills) {
+      const key = String(row.client_id ?? "");
+      const current = map.get(key);
+      if (!current) continue;
+      const total = toNumber(row.total || row.amount);
+      const dateISO = asISO(row.bill_date);
+      current.total += total;
+      if (dateISO && (!current.lastDateISO || dateISO > current.lastDateISO)) {
+        current.lastDateISO = dateISO;
       }
     }
 
-    setGroups((prev) => [g, ...prev])
-
-    setDraft((d) => ({
-      name: "",
-      groupType: d.groupType,
-      ownerClientId: d.ownerClientId,
-      rateMode: "same",
-      sameRate: "",
-      perBankRates: {},
-      adminPhones: [""],
-      employeePhones: [""],
-    }))
-  }
-
-  function clientNameById(id) {
-    return clients.find((c) => c.id === id)?.name ?? "(Unknown client)"
-  }
+    return [...map.values()].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return (b.lastDateISO || "").localeCompare(a.lastDateISO || "");
+    });
+  }, [bills, clientOtherBills, clients]);
 
   const stats = useMemo(() => {
-    const totalBillsAmount = 0
-    const totalClaimerPayments = 0
-    const totalUsers = clients.length + users.filter((u) => u.userType === "Agent").length
+    const monthStartISO = startOfMonthISO(todayISO());
+
+    let totalBillsAmount = 0;
+    for (const row of bills) {
+      const dateISO = asISO(row.bill_date);
+      if (dateISO && dateISO >= monthStartISO) {
+        totalBillsAmount += toNumber(row.total || toNumber(row.amount) * toNumber(row.rate));
+      }
+    }
+    for (const row of clientOtherBills) {
+      const dateISO = asISO(row.bill_date);
+      if (dateISO && dateISO >= monthStartISO) {
+        totalBillsAmount += toNumber(row.total || row.amount);
+      }
+    }
+
+    let totalClaimerPayments = 0;
+    for (const row of agentBills) {
+      const dateISO = asISO(row.bill_date);
+      if (dateISO && dateISO >= monthStartISO) {
+        totalClaimerPayments += toNumber(row.total || toNumber(row.amount) * toNumber(row.rate));
+      }
+    }
 
     return {
       totalBillsAmount,
       totalClaimerPayments,
-      totalUsers,
-    }
-  }, [clients.length, users])
+      totalUsers: clients.length + agents.length,
+    };
+  }, [agentBills, agents.length, bills, clientOtherBills, clients.length]);
 
   return (
     <AppSidebar>
       <div className="min-h-svh w-full bg-muted/30">
         <div className="mx-auto w-full max-w-7xl px-6 py-8">
-          <div className="flex items-start justify-between gap-4 mb-8">
+          <div className="mb-8 flex items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="text-dashboard-title">
                 Dashboard
@@ -234,14 +202,14 @@ export default function DashboardPage() {
             <StatCard
               icon={<BadgeDollarSign className="h-6 w-6" />}
               title="Total Bills Amount"
-              value={`$${stats.totalBillsAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+              value={money(stats.totalBillsAmount)}
               subtitle="Bills generated this month"
               testId="card-stat-bills"
             />
             <StatCard
               icon={<Wallet className="h-6 w-6" />}
               title="Total Claimer Payments"
-              value={`$${stats.totalClaimerPayments.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+              value={money(stats.totalClaimerPayments)}
               subtitle="Owed to claimers"
               testId="card-stat-payments"
             />
@@ -255,69 +223,70 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-8 grid grid-cols-1">
-            <div className="space-y-8">
-              <Card className="rounded-xl border-none shadow-sm" data-testid="card-top-clients">
-                <div className="flex items-center justify-between p-6 pb-0">
-                  <div>
-                    <h3 className="text-lg font-semibold" data-testid="text-top-clients-title">
-                      Top Clients
-                    </h3>
-                    <p className="text-sm text-muted-foreground">Highest revenue generating clients</p>
-                  </div>
-                  <Badge variant="secondary" className="rounded-full px-3" data-testid="badge-top-clients-count">
-                    {clients.length} Total
-                  </Badge>
+            <Card className="rounded-xl border-none shadow-sm" data-testid="card-top-clients">
+              <div className="flex items-center justify-between p-6 pb-0">
+                <div>
+                  <h3 className="text-lg font-semibold" data-testid="text-top-clients-title">
+                    Top Clients
+                  </h3>
+                  <p className="text-sm text-muted-foreground">Highest revenue generating clients</p>
                 </div>
+                <Badge variant="secondary" className="rounded-full px-3" data-testid="badge-top-clients-count">
+                  {clients.length} Total
+                </Badge>
+              </div>
 
-                <div className="p-6 pt-4">
-                  <div className="overflow-hidden rounded-lg border border-border/50">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="border-border/50 hover:bg-transparent">
-                          <TableHead className="w-12 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-rank">#</TableHead>
-                          <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-client">Client</TableHead>
-                          <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-phone">Phone</TableHead>
-                          <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-last-date">Last Date</TableHead>
-                          <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-total">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {clients.slice(0, 5).map((c, idx) => (
-                          <TableRow key={c.id} className="border-border/50" data-testid={`row-top-client-${c.id}`}>
-                            <TableCell className="text-center text-muted-foreground font-medium" data-testid={`cell-rank-${c.id}`}>
-                              {idx + 1}
-                            </TableCell>
-                            <TableCell data-testid={`cell-client-${c.id}`}>
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary"
-                                  data-testid={`img-client-avatar-${c.id}`}
-                                >
-                                  {c.name.slice(0, 1).toUpperCase()}
-                                </div>
-                                <span className="font-medium text-foreground">{c.name}</span>
+              <div className="p-6 pt-4">
+                <div className="overflow-hidden rounded-lg border border-border/50">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-border/50 hover:bg-transparent">
+                        <TableHead className="w-12 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-rank">#</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-client">Client</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-last-date">Last Entry Date</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-total">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {topClients.slice(0, 5).map((c, idx) => (
+                        <TableRow key={c.id} className="border-border/50" data-testid={`row-top-client-${c.id}`}>
+                          <TableCell className="text-center font-medium text-muted-foreground" data-testid={`cell-rank-${c.id}`}>
+                            {idx + 1}
+                          </TableCell>
+                          <TableCell data-testid={`cell-client-${c.id}`}>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+                                data-testid={`img-client-avatar-${c.id}`}
+                              >
+                                {(c.name || "?").slice(0, 1).toUpperCase()}
                               </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-sm" data-testid={`cell-phone-${c.id}`}>
-                              {c.phone ?? "-"}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-sm" data-testid={`cell-date-${c.id}`}>
-                              {c.lastDate ?? "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-foreground" data-testid={`cell-total-${c.id}`}>
-                              {(c.total ?? 0).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                              <span className="font-medium text-foreground">{c.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground" data-testid={`cell-date-${c.id}`}>
+                            {c.lastDateISO ? formatDateDDMMYYYY(c.lastDateISO) : "-"}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground" data-testid={`cell-total-${c.id}`}>
+                            {toNumber(c.total).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {topClients.length === 0 ? (
+                        <TableRow className="border-border/50">
+                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                            No clients available
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </TableBody>
+                  </Table>
                 </div>
-              </Card>
-            </div>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
     </AppSidebar>
-  )
+  );
 }

@@ -36,7 +36,10 @@ async function request(path, options = {}) {
     if (response.status === 401) {
       handleAuthExpired();
     }
-    throw new Error(data?.message || "Request failed");
+    const error = new Error(data?.message || "Request failed");
+    error.status = response.status;
+    error.payload = data;
+    throw error;
   }
 
   return data;
