@@ -1,8 +1,64 @@
 const billModel = require('../models/billModel');
+const XLSX = require('xlsx');
 
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
+}
+
+function normalizeKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeSource(value) {
+  const s = String(value || '').trim().toLowerCase();
+  if (s === 'claim') return 'claim';
+  if (s === 'depo') return 'depo';
+  return '';
+}
+
+function parseDateToISO(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      const y = String(parsed.y).padStart(4, '0');
+      const m = String(parsed.m).padStart(2, '0');
+      const d = String(parsed.d).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const s = String(value || '').trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  const ddmmyyyy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (ddmmyyyy) {
+    const d = ddmmyyyy[1].padStart(2, '0');
+    const m = ddmmyyyy[2].padStart(2, '0');
+    const y = ddmmyyyy[3];
+    return `${y}-${m}-${d}`;
+  }
+
+  const dt = new Date(s);
+  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+  return '';
+}
+
+function isBlankBank(value) {
+  const bank = String(value || '').trim().toLowerCase();
+  return bank === '' || bank === '-' || bank === 'n/a';
 }
 
 exports.getBills = async (req, res) => {
@@ -142,6 +198,244 @@ exports.deleteBill = async (req, res) => {
     const deleted = await billModel.deleteBill(id);
     if (!deleted) return res.status(404).json({ message: 'Bill not found' });
     return res.json({ message: 'Bill deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.bulkUploadBills = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'File is required' });
+    }
+
+    let workbook;
+    try {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    } catch (_error) {
+      return res.status(400).json({ message: 'Invalid file. Upload a valid CSV/XLS/XLSX file.' });
+    }
+
+    const firstSheetName = workbook.SheetNames?.[0];
+    if (!firstSheetName) {
+      return res.status(400).json({ message: 'Uploaded file does not contain any sheet data' });
+    }
+
+    const sheet = workbook.Sheets[firstSheetName];
+    const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!Array.isArray(matrix) || matrix.length < 2) {
+      return res.status(400).json({ message: 'File must include a header row and at least one data row' });
+    }
+
+    const requiredColumns = ['Date', 'Group', 'Agent', 'Bank', 'Amount', 'Total'];
+    const headerRow = (matrix[0] || []).map((v) => String(v || '').trim());
+    const headerIndexByKey = new Map();
+    headerRow.forEach((header, index) => {
+      const key = normalizeKey(header);
+      if (key) headerIndexByKey.set(key, index);
+    });
+
+    const missingColumns = requiredColumns.filter((col) => !headerIndexByKey.has(normalizeKey(col)));
+    if (missingColumns.length) {
+      return res.status(400).json({
+        message: `Missing required columns: ${missingColumns.join(', ')}`
+      });
+    }
+
+    const dataRows = matrix
+      .slice(1)
+      .map((row, idx) => ({ row, rowNumber: idx + 2 }))
+      .filter(({ row }) => Array.isArray(row) && row.some((cell) => String(cell || '').trim() !== ''));
+
+    if (!dataRows.length) {
+      return res.status(400).json({ message: 'No bill rows found in uploaded file' });
+    }
+
+    const lookup = await billModel.getBulkUploadLookupData();
+
+    const groupsByName = new Map();
+    for (const group of lookup.groups || []) {
+      groupsByName.set(normalizeName(group.name), group);
+    }
+
+    const usersById = new Map();
+    const agentsByName = new Map();
+    for (const user of lookup.users || []) {
+      usersById.set(Number(user.id), user);
+      const nameKey = normalizeName(user.name);
+      const role = String(user.role || '').trim().toLowerCase();
+      if (!nameKey) continue;
+      if (role === 'agent') {
+        if (!agentsByName.has(nameKey)) agentsByName.set(nameKey, []);
+        agentsByName.get(nameKey).push(user);
+      }
+    }
+
+    const banksByName = new Map();
+    for (const bank of lookup.banks || []) {
+      banksByName.set(normalizeName(bank.bank_name), bank);
+    }
+
+    const groupRateMap = new Map();
+    for (const row of lookup.groupBankRates || []) {
+      groupRateMap.set(`${row.group_id}:${row.bank_id}`, Number(row.rate));
+    }
+
+    const getCell = (row, columnName) => {
+      const idx = headerIndexByKey.get(normalizeKey(columnName));
+      return idx === undefined ? '' : row[idx];
+    };
+
+    const rowsForInsert = [];
+    const errors = [];
+
+    for (const { row, rowNumber } of dataRows) {
+      const rowErrors = [];
+      const dateRaw = getCell(row, 'Date');
+      const groupRaw = getCell(row, 'Group');
+      const agentRaw = getCell(row, 'Agent');
+      const bankRaw = getCell(row, 'Bank');
+      const amountRaw = getCell(row, 'Amount');
+      const totalRaw = getCell(row, 'Total');
+
+      const billDate = parseDateToISO(dateRaw);
+      if (!billDate) rowErrors.push('Date is invalid');
+
+      const groupNameKey = normalizeName(groupRaw);
+      const group = groupsByName.get(groupNameKey);
+      if (!group) rowErrors.push(`Group not found: ${String(groupRaw || '').trim()}`);
+
+      const groupOwnerId = group ? Number(group.owner) : NaN;
+      const client = Number.isFinite(groupOwnerId) ? usersById.get(groupOwnerId) : null;
+      if (!client) {
+        rowErrors.push(`Client not found from group owner for group: ${String(groupRaw || '').trim()}`);
+      } else if (String(client.role || '').trim().toLowerCase() !== 'client') {
+        rowErrors.push(`Group owner must have role=Client for group: ${String(groupRaw || '').trim()}`);
+      }
+
+      const agentNameKey = normalizeName(agentRaw);
+      const agentMatches = agentsByName.get(agentNameKey) || [];
+      if (!agentMatches.length) {
+        rowErrors.push(`Agent not found with role=Agent: ${String(agentRaw || '').trim()}`);
+      } else if (agentMatches.length > 1) {
+        rowErrors.push(`Multiple agents found with same name: ${String(agentRaw || '').trim()}`);
+      }
+      const agent = agentMatches[0];
+
+      const source = group ? normalizeSource(group.type) : '';
+      if (group && !source) {
+        rowErrors.push(`Group type must be Claim or Depo: ${group.type || ''}`);
+      }
+
+      const amount = toNumber(amountRaw);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        rowErrors.push('Amount must be a number greater than 0');
+      }
+
+      let bankId = null;
+      let derivedRate = NaN;
+      if (group) {
+        const hasSameRate = group.same_rate !== null && group.same_rate !== undefined;
+        const bankIsBlank = isBlankBank(bankRaw);
+        const bankName = String(bankRaw || '').trim();
+        let bank = null;
+
+        if (!bankIsBlank) {
+          bank = banksByName.get(normalizeName(bankName)) || null;
+          if (!bank) rowErrors.push(`Bank not found: ${bankName}`);
+        }
+
+        if (hasSameRate) {
+          const groupRate = Number(group.same_rate);
+          if (!Number.isFinite(groupRate)) {
+            rowErrors.push(`Group same_rate is invalid for group: ${group.name}`);
+          } else {
+            derivedRate = groupRate;
+          }
+
+          if (bank) {
+            bankId = Number(bank.id);
+          }
+        } else {
+          if (bankIsBlank) {
+            rowErrors.push(`Bank is required for per-bank rate group: ${group.name}`);
+          } else if (bank) {
+            const groupBankRate = groupRateMap.get(`${group.id}:${bank.id}`);
+            if (groupBankRate === undefined) {
+              rowErrors.push(`Bank "${bank.bank_name}" is not configured in group_bank_rate for group "${group.name}"`);
+            } else {
+              bankId = Number(bank.id);
+              derivedRate = Number(groupBankRate);
+            }
+          }
+        }
+      }
+
+      if (!Number.isFinite(derivedRate) || derivedRate <= 0) {
+        rowErrors.push('Rate could not be derived from group configuration');
+      }
+
+      const expectedTotal = Number((amount * derivedRate).toFixed(2));
+      const totalIsBlank = String(totalRaw ?? '').trim() === '';
+      if (!totalIsBlank) {
+        const total = toNumber(totalRaw);
+        if (!Number.isFinite(total) || total < 0) {
+          rowErrors.push('Total must be a valid number');
+        } else if (Number.isFinite(amount) && Number.isFinite(derivedRate)) {
+          const providedTotal = Number(total.toFixed(2));
+          if (Math.abs(providedTotal - expectedTotal) > 0.01) {
+            rowErrors.push(`Total mismatch. Expected ${expectedTotal}, received ${providedTotal}`);
+          }
+        }
+      }
+
+      if (rowErrors.length) {
+        errors.push({
+          rowNumber,
+          errors: rowErrors,
+          row: {
+            Date: dateRaw,
+            Group: groupRaw,
+            Agent: agentRaw,
+            Bank: bankRaw,
+            Amount: amountRaw,
+            DerivedClient: client?.name || '',
+            DerivedSource: source ? (source === 'depo' ? 'Depo' : 'Claim') : '',
+            DerivedRate: Number.isFinite(derivedRate) ? derivedRate : '',
+            Total: totalRaw
+          }
+        });
+        continue;
+      }
+
+      rowsForInsert.push({
+        bill_date: billDate,
+        group_id: Number(group.id),
+        bank_id: bankId,
+        client_id: Number(client.id),
+        agent_id: Number(agent.id),
+        amount: Number(amount),
+        rate: Number(derivedRate)
+      });
+    }
+
+    if (errors.length) {
+      return res.status(400).json({
+        message: 'Bulk upload validation failed. No data was inserted.',
+        totalRows: dataRows.length,
+        failedRows: errors.length,
+        errors
+      });
+    }
+
+    const inserted = await billModel.createBillsBulk(rowsForInsert);
+
+    return res.status(201).json({
+      message: 'Bulk upload successful',
+      totalRows: dataRows.length,
+      failedRows: 0,
+      insertedCount: inserted.length
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

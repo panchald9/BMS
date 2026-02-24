@@ -346,6 +346,72 @@ const getAgentAllBills = async (agentId) => {
   };
 };
 
+const getBulkUploadLookupData = async () => {
+  const [groupsResult, usersResult, banksResult, groupBankRatesResult] = await Promise.all([
+    pool.query(
+      `SELECT id, name, type, same_rate, owner
+       FROM groups`
+    ),
+    pool.query(
+      `SELECT id, name, role
+       FROM users
+       WHERE LOWER(COALESCE(role, '')) IN ('client', 'agent')`
+    ),
+    pool.query(
+      `SELECT id, bank_name
+       FROM banks`
+    ),
+    pool.query(
+      `SELECT group_id, bank_id, rate
+       FROM group_bank_rate`
+    )
+  ]);
+
+  return {
+    groups: groupsResult.rows,
+    users: usersResult.rows,
+    banks: banksResult.rows,
+    groupBankRates: groupBankRatesResult.rows
+  };
+};
+
+const createBillsBulk = async (rows) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inserted = [];
+
+    for (const row of rows) {
+      const result = await client.query(
+        `INSERT INTO bill (bill_date, group_id, bank_id, client_id, agent_id, amount, rate)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [
+          row.bill_date,
+          row.group_id,
+          row.bank_id || null,
+          row.client_id,
+          row.agent_id,
+          row.amount,
+          row.rate ?? null
+        ]
+      );
+
+      const bill = result.rows[0];
+      inserted.push(bill);
+      await upsertAgentBillForBill(client, bill.id);
+    }
+
+    await client.query('COMMIT');
+    return inserted;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const updateBill = async (id, { bill_date, group_id, bank_id, client_id, agent_id, amount, rate }) => {
   const client = await pool.connect();
   try {
@@ -384,10 +450,12 @@ const deleteBill = async (id) => {
 
 module.exports = {
   createBill,
+  createBillsBulk,
   getBills,
   getAgentBills,
   getClientAllBills,
   getAgentAllBills,
+  getBulkUploadLookupData,
   updateBill,
   deleteBill
 };

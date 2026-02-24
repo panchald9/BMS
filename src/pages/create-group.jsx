@@ -20,6 +20,7 @@ import { getClientUsers, getBanks, createGroup, createGroupBankRate, createGroup
 import { useToast } from "../hooks/use-toast";
 
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"];
+const PHONE_MIN_LENGTH = 10;
 const PHONE_MAX_LENGTH = 12;
 
 function uid() {
@@ -27,7 +28,12 @@ function uid() {
 }
 
 function cleanPhone(v) {
-  return v.replace(/\s+/g, " ").trim();
+  return String(v || "").replace(/\D/g, "").slice(0, PHONE_MAX_LENGTH);
+}
+
+function isValidPhone(v) {
+  const cleaned = cleanPhone(v);
+  return cleaned.length >= PHONE_MIN_LENGTH && cleaned.length <= PHONE_MAX_LENGTH;
 }
 
 function isClaimOrDepo(t) {
@@ -89,9 +95,19 @@ export default function CreateGroupPage() {
       }
     }
 
-    const anyAdminPhone = adminPhones.some((p) => cleanPhone(p).length > 0);
-    const anyEmpPhone = employeePhones.some((p) => cleanPhone(p).length > 0);
+    const anyAdminPhone = adminPhones.some((p) => isValidPhone(p));
+    const anyEmpPhone = employeePhones.some((p) => isValidPhone(p));
     if (!anyAdminPhone && !anyEmpPhone) return false;
+
+    const hasInvalidAdmin = adminPhones.some((p) => {
+      const cleaned = cleanPhone(p);
+      return cleaned.length > 0 && !isValidPhone(cleaned);
+    });
+    const hasInvalidEmployee = employeePhones.some((p) => {
+      const cleaned = cleanPhone(p);
+      return cleaned.length > 0 && !isValidPhone(cleaned);
+    });
+    if (hasInvalidAdmin || hasInvalidEmployee) return false;
 
     return true;
   }, [groupName, ownerClientId, groupType, rateMode, sameRate, perBankRates, banks, adminPhones, employeePhones]);
@@ -119,7 +135,7 @@ export default function CreateGroupPage() {
   }
 
   function updatePhone(list, index, value) {
-    const nextValue = value.slice(0, PHONE_MAX_LENGTH);
+    const nextValue = cleanPhone(value);
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();
@@ -170,7 +186,7 @@ export default function CreateGroupPage() {
 
         adminPhones.forEach((phone) => {
           const cleaned = cleanPhone(phone);
-          if (cleaned) {
+          if (isValidPhone(cleaned)) {
             promises.push(
               createGroupAdminNumber({
                 group_id: groupId,
@@ -182,7 +198,7 @@ export default function CreateGroupPage() {
 
         employeePhones.forEach((phone) => {
           const cleaned = cleanPhone(phone);
-          if (cleaned) {
+          if (isValidPhone(cleaned)) {
             promises.push(
               createGroupEmployeeNumber({
                 group_id: groupId,
@@ -401,7 +417,8 @@ export default function CreateGroupPage() {
                             value={p}
                             maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("admin", idx, e.target.value)}
-                            placeholder="Phone"
+                            placeholder="10 to 12 digits"
+                            pattern="[0-9]*"
                             className="soft-ring h-11"
                             data-testid={`input-admin-phone-${idx}`}
                           />
@@ -417,6 +434,14 @@ export default function CreateGroupPage() {
                           </Button>
                         </div>
                       ))}
+                      {adminPhones.some((p) => {
+                        const cleaned = cleanPhone(p);
+                        return cleaned.length > 0 && !isValidPhone(cleaned);
+                      }) ? (
+                        <div className="text-xs text-red-600">
+                          Admin phone must contain only digits and be {PHONE_MIN_LENGTH}-{PHONE_MAX_LENGTH} digits.
+                        </div>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
@@ -441,7 +466,8 @@ export default function CreateGroupPage() {
                             value={p}
                             maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("employee", idx, e.target.value)}
-                            placeholder="Phone"
+                            placeholder="10 to 12 digits"
+                            pattern="[0-9]*"
                             className="soft-ring h-11"
                             data-testid={`input-employee-phone-${idx}`}
                           />
@@ -457,6 +483,14 @@ export default function CreateGroupPage() {
                           </Button>
                         </div>
                       ))}
+                      {employeePhones.some((p) => {
+                        const cleaned = cleanPhone(p);
+                        return cleaned.length > 0 && !isValidPhone(cleaned);
+                      }) ? (
+                        <div className="text-xs text-red-600">
+                          Employee phone must contain only digits and be {PHONE_MIN_LENGTH}-{PHONE_MAX_LENGTH} digits.
+                        </div>
+                      ) : null}
                     </div>
                     <Button
                       type="button"

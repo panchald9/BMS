@@ -180,6 +180,31 @@ export function createBill(payload) {
   });
 }
 
+export async function bulkUploadBills(file) {
+  const token = localStorage.getItem("authToken");
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/bills/bulk-upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleAuthExpired();
+    }
+    const error = new Error(data?.message || "Bulk upload failed");
+    error.status = response.status;
+    error.payload = data;
+    throw error;
+  }
+
+  return data;
+}
+
 export function updateBill(id, payload) {
   return request(`/bills/${id}`, {
     method: "PUT",

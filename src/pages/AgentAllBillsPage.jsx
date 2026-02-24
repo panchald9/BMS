@@ -60,7 +60,7 @@ function BillsTable({ rows }) {
                   <th className="px-3 py-2 text-left">Bank</th>
                   <th className="px-3 py-2 text-right">Amount ($)</th>
                   <th className="px-3 py-2 text-right">Rate</th>
-                  <th className="px-3 py-2 text-right">Total (\u20B9)</th>
+                  <th className="px-3 py-2 text-right">Total (₹)</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
@@ -106,8 +106,8 @@ function OtherTable({ rows }) {
                 <tr>
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Comment</th>
-                  <th className="px-3 py-2 text-right">Amount (\u20B9)</th>
-                  <th className="px-3 py-2 text-right">Total (\u20B9)</th>
+                  <th className="px-3 py-2 text-right">Amount (₹)</th>
+                  <th className="px-3 py-2 text-right">Total (₹)</th>
                 </tr>
               </thead>
               <tbody className="text-sm">

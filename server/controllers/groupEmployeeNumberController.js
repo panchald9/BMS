@@ -1,5 +1,14 @@
 const groupEmployeeNumberModel = require('../models/groupEmployeeNumberModel');
+const PHONE_MIN_LENGTH = 10;
 const PHONE_MAX_LENGTH = 12;
+
+function normalizePhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidPhone(phone) {
+  return /^\d+$/.test(phone) && phone.length >= PHONE_MIN_LENGTH && phone.length <= PHONE_MAX_LENGTH;
+}
 
 exports.getGroupEmployeeNumbers = async (_req, res) => {
   try {
@@ -28,9 +37,9 @@ exports.createGroupEmployeeNumber = async (req, res) => {
     if (!group_id || !number) {
       return res.status(400).json({ message: 'group_id and number are required' });
     }
-    const normalizedNumber = String(number).trim();
-    if (normalizedNumber.length > PHONE_MAX_LENGTH) {
-      return res.status(400).json({ message: `number must be at most ${PHONE_MAX_LENGTH} characters` });
+    const normalizedNumber = normalizePhone(number);
+    if (!isValidPhone(normalizedNumber)) {
+      return res.status(400).json({ message: `number must be digits only and ${PHONE_MIN_LENGTH}-${PHONE_MAX_LENGTH} digits` });
     }
 
     const row = await groupEmployeeNumberModel.createGroupEmployeeNumber({ group_id, number: normalizedNumber });
@@ -46,9 +55,9 @@ exports.updateGroupEmployeeNumber = async (req, res) => {
     if (!group_id || !number) {
       return res.status(400).json({ message: 'group_id and number are required' });
     }
-    const normalizedNumber = String(number).trim();
-    if (normalizedNumber.length > PHONE_MAX_LENGTH) {
-      return res.status(400).json({ message: `number must be at most ${PHONE_MAX_LENGTH} characters` });
+    const normalizedNumber = normalizePhone(number);
+    if (!isValidPhone(normalizedNumber)) {
+      return res.status(400).json({ message: `number must be digits only and ${PHONE_MIN_LENGTH}-${PHONE_MAX_LENGTH} digits` });
     }
 
     const row = await groupEmployeeNumberModel.updateGroupEmployeeNumber(req.params.id, { group_id, number: normalizedNumber });

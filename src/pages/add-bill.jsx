@@ -1,4 +1,3 @@
-import Papa from "papaparse"
 import { useEffect, useMemo, useState, useRef } from "react"
 import { useLocation } from "wouter"
 import {
@@ -48,6 +47,7 @@ import {
   getBillGroups,
   getBills,
   getOtherBills,
+  bulkUploadBills,
   updateBill,
   updateOtherBill
 } from "../lib/api"
@@ -132,56 +132,47 @@ export default function AddBillPage() {
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [bulkFile, setBulkFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [bulkUploadErrors, setBulkUploadErrors] = useState([])
+  const [bulkUploadMessage, setBulkUploadMessage] = useState("")
   const fileInputRef = useRef(null)
 
   const handleBulkFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setBulkFile(e.target.files[0])
+      setBulkUploadErrors([])
+      setBulkUploadMessage("")
     }
   }
 
-  const handleBulkUpload = () => {
+  const handleBulkUpload = async () => {
     if (!bulkFile) return
 
     setIsUploading(true)
-    Papa.parse(bulkFile, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const newRows = results.data.map((row) => {
-           return {
-             id: `${tab === "Claim Bills" ? "c" : "d"}-${uid()}`,
-             date: row.date || row.Date || todayISO(),
-             group: row.group || row.Group || "Uploaded Group",
-             client: row.client || row.Client || "Uploaded Client",
-             claimer: row.claimer || row.agent || "Uploaded Agent",
-             bank: row.bank || row.Bank || "Other",
-             amount: row.amount || row.Amount || "0.00",
-             rate: row.rate || row.Rate || "0.00",
-             total: row.total || row.Total || "0.00",
-             source: tab === "Claim Bills" ? "Claim" : "Depo"
-           }
-        })
+    setBulkUploadErrors([])
+    setBulkUploadMessage("")
 
-        const validRows = newRows.filter(r => r.amount !== "0.00" || r.group !== "Uploaded Group")
-        
-        if (validRows.length > 0) {
-           setRows(prev => [...validRows, ...prev])
-        }
-
-        setIsUploading(false)
-        setIsBulkUploadOpen(false)
-        setBulkFile(null)
-      },
-      error: (error) => {
-        console.error("Error parsing CSV:", error)
-        setIsUploading(false)
+    try {
+      const result = await bulkUploadBills(bulkFile)
+      setBulkUploadMessage(result?.message || "Bulk upload successful")
+      loadBillsForTab(tab)
+      setIsBulkUploadOpen(false)
+      setBulkFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    } catch (error) {
+      console.error("Bulk upload failed:", error)
+      const responseErrors = error?.payload?.errors
+      if (Array.isArray(responseErrors) && responseErrors.length) {
+        setBulkUploadErrors(responseErrors)
+      } else {
+        setBulkUploadMessage(error?.message || "Bulk upload failed")
       }
-    })
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleDownloadTemplate = () => {
-    const csvContent = "Date,Group,Client,Agent,Amount,Rate,Bank\n01-10-2026,Sample Group,Sample Client,Sample Agent,100,5.5,Other"
+    const csvContent = "Date,Group,Agent,Bank,Amount,Total\n01-10-2026,Sample Group,Sample Agent,Sample Bank,100,550"
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -191,6 +182,16 @@ export default function AddBillPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  function handleBulkDialogOpenChange(open) {
+    setIsBulkUploadOpen(open)
+    if (!open) {
+      setBulkFile(null)
+      setBulkUploadErrors([])
+      setBulkUploadMessage("")
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
   }
 
   const [rows, setRows] = useState(demoClaimRows)
@@ -943,7 +944,7 @@ export default function AddBillPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   {(tab === "Claim Bills" || tab === "Depo Bills") && (
-                    <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+                    <Dialog open={isBulkUploadOpen} onOpenChange={handleBulkDialogOpenChange}>
                       <DialogTrigger asChild>
                         <Button variant="outline" className="gap-2 rounded-full border-dashed" data-testid="button-bulk-upload-trigger">
                           <Upload className="h-4 w-4" />
@@ -954,7 +955,7 @@ export default function AddBillPage() {
                         <DialogHeader>
                           <DialogTitle>Bulk Upload {tab}</DialogTitle>
                           <DialogDescription>
-                            Upload a CSV file containing bill data.
+                            Upload a CSV or Excel file containing bill data.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
@@ -968,12 +969,35 @@ export default function AddBillPage() {
                              </Button>
                           </div>
                           <div className="grid w-full max-w-sm items-center gap-1.5">
-                            <Label htmlFor="bulk-file">Bill Data (CSV)</Label>
-                            <Input id="bulk-file" type="file" accept=".csv" onChange={handleBulkFileChange} ref={fileInputRef} />
+                            <Label htmlFor="bulk-file">Bill Data (CSV/XLS/XLSX)</Label>
+                            <Input id="bulk-file" type="file" accept=".csv,.xls,.xlsx" onChange={handleBulkFileChange} ref={fileInputRef} />
                           </div>
+
+                          {bulkUploadMessage ? (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                              {bulkUploadMessage}
+                            </div>
+                          ) : null}
+
+                          {bulkUploadErrors.length ? (
+                            <div className="max-h-56 overflow-auto rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                              <div className="mb-2 font-semibold">
+                                Validation failed for {bulkUploadErrors.length} row(s). No data was inserted.
+                              </div>
+                              {bulkUploadErrors.slice(0, 20).map((entry, idx) => (
+                                <div key={`${entry.rowNumber}-${idx}`} className="mb-2">
+                                  <div className="font-medium">Row {entry.rowNumber}</div>
+                                  <div>{Array.isArray(entry.errors) ? entry.errors.join(" | ") : "Invalid row"}</div>
+                                </div>
+                              ))}
+                              {bulkUploadErrors.length > 20 ? (
+                                <div className="font-medium">Showing first 20 rows only.</div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>Cancel</Button>
+                          <Button variant="outline" onClick={() => handleBulkDialogOpenChange(false)}>Cancel</Button>
                           <Button onClick={handleBulkUpload} disabled={!bulkFile || isUploading}>
                             {isUploading ? "Processing..." : "Upload & Process"}
                           </Button>
