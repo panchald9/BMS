@@ -259,6 +259,8 @@ export default function CreateGroupPage() {
             </div>
           </div>
 
+
+{/* << */}
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
             <Card className="rounded-2xl border bg-white/70 p-5 shadow-sm lg:col-span-3" data-testid="card-create-group-form">
               <div className="mb-4 flex items-start justify-between gap-3">
