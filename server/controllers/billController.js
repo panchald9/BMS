@@ -1,5 +1,6 @@
 const billModel = require('../models/billModel');
 const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 
 function toNumber(value) {
   const n = Number(value);
@@ -82,12 +83,162 @@ exports.getAgentBills = async (_req, res) => {
 
 exports.getClientAllBills = async (req, res) => {
   try {
-    const clientId = toNumber(req.query.client_id);
-    if (!Number.isInteger(clientId) || clientId <= 0) {
-      return res.status(400).json({ message: 'client_id query param is required' });
+    const rawClientId = String(req.query.client_id || '').trim();
+    let clientId = null;
+    if (rawClientId && rawClientId.toLowerCase() !== 'all') {
+      const parsedClientId = toNumber(rawClientId);
+      if (!Number.isInteger(parsedClientId) || parsedClientId <= 0) {
+        return res.status(400).json({ message: 'client_id must be a positive integer or "all"' });
+      }
+      clientId = parsedClientId;
     }
     const data = await billModel.getClientAllBills(clientId);
     return res.json(data);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.exportClientAllBillsExcel = async (req, res) => {
+  try {
+    const BILL_TYPES = ['Claim Bills', 'Depo Bills', 'Other Bills', 'Processing Bills', 'Payment Bills'];
+    const body = req.body || {};
+    const clientLabel = String(body.clientLabel || 'All Clients');
+    const dateRangeLabel = String(body.dateRangeLabel || 'All dates');
+    const searchText = String(body.searchText || 'N/A');
+    const pendingDue = Number(body.pendingDue) || 0;
+    const providedGrandTotal = Number(body.grandTotalAmount);
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+
+    const rowsByType = new Map();
+    const totalsByType = { claim: 0, depo: 0, processing: 0, payment: 0, other: 0 };
+    for (const type of BILL_TYPES) rowsByType.set(type, []);
+
+    for (const row of rows) {
+      const type = String(row?.type || '');
+      if (!rowsByType.has(type)) continue;
+      rowsByType.get(type).push(row);
+      const total = Number(row?.totalInr || 0);
+      if (type === 'Claim Bills') totalsByType.claim += total;
+      else if (type === 'Depo Bills') totalsByType.depo += total;
+      else if (type === 'Processing Bills') totalsByType.processing += total;
+      else if (type === 'Payment Bills') totalsByType.payment += total;
+      else if (type === 'Other Bills') totalsByType.other += total;
+    }
+
+    const computedGrandTotal = Number.isFinite(providedGrandTotal) ? providedGrandTotal :
+      totalsByType.claim + totalsByType.depo + totalsByType.processing + totalsByType.payment + totalsByType.other + pendingDue;
+
+    const formatISOToDDMMYYYY = (iso) => {
+      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : iso || '-';
+    };
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Client Bills');
+    worksheet.columns = [
+      { width: 14 }, { width: 16 }, { width: 16 }, { width: 20 },
+      { width: 12 }, { width: 8 }, { width: 12 }, { width: 14 }
+    ];
+
+    const headerStyle = { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const titleStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const colHeaderStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5B9BD5' } }, alignment: { horizontal: 'center' }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const grandTotalStyle = { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD966' } }, border: { top: { style: 'medium' }, bottom: { style: 'medium' }, left: { style: 'medium' }, right: { style: 'medium' } } };
+
+    let currentRow = 1;
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Client: ${clientLabel}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Date Range: ${dateRangeLabel}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Search: ${searchText}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Rows: ${rows.length}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow += 2;
+
+    for (const type of BILL_TYPES) {
+      const sectionRows = [...(rowsByType.get(type) || [])].sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+      const sectionTotal = sectionRows.reduce((acc, row) => acc + Number(row?.totalInr || 0), 0);
+
+      worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+      worksheet.getCell(`A${currentRow}`).value = type;
+      worksheet.getCell(`A${currentRow}`).style = titleStyle;
+      currentRow++;
+
+      worksheet.getCell(`G${currentRow}`).value = `${sectionRows.length} rows`;
+      worksheet.getCell(`H${currentRow}`).value = `Total: ${sectionTotal.toFixed(2)} INR`;
+      currentRow++;
+
+      ['Date', 'Group', 'Client', 'Bank', 'Amount ($)', '%', 'Dollar Rate', 'Total (INR)'].forEach((h, i) => {
+        worksheet.getCell(currentRow, i + 1).value = h;
+        worksheet.getCell(currentRow, i + 1).style = colHeaderStyle;
+      });
+      currentRow++;
+
+      if (!sectionRows.length) {
+        worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+        worksheet.getCell(`A${currentRow}`).value = 'No bills found.';
+        currentRow++;
+      } else {
+        for (const row of sectionRows) {
+          const isProcOrPay = row.type === 'Processing Bills' || row.type === 'Payment Bills';
+          worksheet.addRow([
+            formatISOToDDMMYYYY(row.dateISO),
+            row.group || '-',
+            row.client || '-',
+            row.paymentType || row.bank || '-',
+            Number(row.amountUsd || 0),
+            isProcOrPay ? Number(row.pct || 0) : '-',
+            row.rate ? Number(row.rate) : '-',
+            Number(row.totalInr || 0)
+          ]);
+          currentRow++;
+        }
+      }
+
+      worksheet.getCell(`G${currentRow}`).value = 'Total:';
+      worksheet.getCell(`G${currentRow}`).font = { bold: true };
+      worksheet.getCell(`H${currentRow}`).value = Number(sectionTotal.toFixed(2));
+      worksheet.getCell(`H${currentRow}`).font = { bold: true };
+      currentRow += 2;
+    }
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Grand Total: ${computedGrandTotal.toFixed(2)} INR`;
+    worksheet.getCell(`A${currentRow}`).style = grandTotalStyle;
+    currentRow += 2;
+
+    ['Claim', 'Depo', 'Processing', 'Payment', 'Other', 'Pending/Due', 'Total'].forEach((h, i) => {
+      worksheet.getCell(currentRow, i + 1).value = h;
+      worksheet.getCell(currentRow, i + 1).font = { bold: true };
+    });
+    currentRow++;
+
+    worksheet.addRow([
+      Number(totalsByType.claim.toFixed(2)),
+      Number(totalsByType.depo.toFixed(2)),
+      Number(totalsByType.processing.toFixed(2)),
+      Number(totalsByType.payment.toFixed(2)),
+      Number(totalsByType.other.toFixed(2)),
+      Number(pendingDue.toFixed(2)),
+      Number(computedGrandTotal.toFixed(2))
+    ]);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="client_bills_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    return res.send(buffer);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { Download } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -8,7 +9,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { DateInput } from "@/components/ui/date-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
-import { getClientAllBills, getClientUsers } from "../lib/api";
+import { exportClientAllBillsExcel, getClientAllBills, getClientUsers } from "../lib/api";
 import {
   endOfMonthISO,
   endOfWeekISO,
@@ -21,6 +22,7 @@ import {
 import { useToast } from "../hooks/use-toast";
 
 const BILL_TYPES = ["Claim Bills", "Depo Bills", "Other Bills", "Processing Bills", "Payment Bills"];
+const ALL_CLIENTS_VALUE = "all";
 
 const emptySections = {
   claimBills: [],
@@ -164,9 +166,10 @@ export default function ClientAllBillsPage() {
   const { toast } = useToast();
 
   const [clients, setClients] = useState([]);
-  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState(ALL_CLIENTS_VALUE);
   const [sections, setSections] = useState(emptySections);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [search, setSearch] = useState("");
 
   const [datePreset, setDatePreset] = useState("all");
@@ -179,7 +182,6 @@ export default function ClientAllBillsPage() {
         const rows = await getClientUsers();
         const mapped = (rows || []).map((x) => ({ id: String(x.id), name: x.name || "" }));
         setClients(mapped);
-        if (mapped[0]?.id) setSelectedClientId(mapped[0].id);
       } catch (e) {
         toast({ title: "Load failed", description: e.message || "Unable to load clients", variant: "destructive" });
       }
@@ -187,14 +189,11 @@ export default function ClientAllBillsPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (!selectedClientId) {
-      setSections(emptySections);
-      return;
-    }
     (async () => {
       try {
         setLoading(true);
-        const data = await getClientAllBills(selectedClientId);
+        const clientIdArg = selectedClientId === ALL_CLIENTS_VALUE ? null : selectedClientId;
+        const data = await getClientAllBills(clientIdArg);
         setSections({
           claimBills: data?.claimBills || [],
           depoBills: data?.depoBills || [],
@@ -321,6 +320,42 @@ export default function ClientAllBillsPage() {
       ? `${formatDateDDMMYYYY(selectedRange.fromISO)} - ${formatDateDDMMYYYY(selectedRange.toISO)}`
       : "All dates";
 
+  const handleDownloadFilteredExcel = async () => {
+    if (!filteredRows.length || isExporting) return;
+
+    const clientLabel =
+      selectedClientId === ALL_CLIENTS_VALUE
+        ? "All Clients"
+        : clients.find((c) => c.id === selectedClientId)?.name || "Selected Client";
+    try {
+      setIsExporting(true);
+      const blob = await exportClientAllBillsExcel({
+        clientLabel,
+        dateRangeLabel: selectedRangeLabel,
+        searchText: search.trim() || "N/A",
+        rows: filteredRows,
+        pendingDue,
+        grandTotalAmount,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `client_bills_filtered_${todayISO()}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Unable to export Excel file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <AppSidebar>
       <div className="min-h-svh w-full bg-background">
@@ -348,6 +383,7 @@ export default function ClientAllBillsPage() {
                         <SelectValue placeholder="Select Client" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={ALL_CLIENTS_VALUE}>All Clients</SelectItem>
                         {clients.map((c) => (
                           <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                         ))}
@@ -400,6 +436,15 @@ export default function ClientAllBillsPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{loading ? "Loading..." : `${selectedRangeTotals.count} rows`}</Badge>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleDownloadFilteredExcel}
+                    disabled={loading || !filteredRows.length || isExporting}
+                  >
+                    <Download className="h-4 w-4" />
+                    {isExporting ? "Exporting..." : "Download Excel (Filtered)"}
+                  </Button>
                 </div>
               </div>
 

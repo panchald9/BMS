@@ -186,6 +186,9 @@ const getAgentBills = async () => {
 };
 
 const getClientAllBills = async (clientId) => {
+  const hasClientFilter = Number.isInteger(clientId) && clientId > 0;
+  const values = hasClientFilter ? [clientId] : [];
+
   const claimBillsResult = await pool.query(
     `SELECT b.id,
             b.bill_date,
@@ -199,10 +202,9 @@ const getClientAllBills = async (clientId) => {
      JOIN groups g ON g.id = b.group_id
      LEFT JOIN users c ON c.id = b.client_id
      LEFT JOIN banks bk ON bk.id = b.bank_id
-     WHERE b.client_id = $1
-       AND LOWER(COALESCE(g.type, '')) = 'claim'
+     WHERE ${hasClientFilter ? 'b.client_id = $1 AND ' : ''}LOWER(COALESCE(g.type, '')) = 'claim'
      ORDER BY b.bill_date DESC, b.id DESC`,
-    [clientId]
+    values
   );
 
   const depoBillsResult = await pool.query(
@@ -218,10 +220,9 @@ const getClientAllBills = async (clientId) => {
      JOIN groups g ON g.id = b.group_id
      LEFT JOIN users c ON c.id = b.client_id
      LEFT JOIN banks bk ON bk.id = b.bank_id
-     WHERE b.client_id = $1
-       AND LOWER(COALESCE(g.type, '')) = 'depo'
+     WHERE ${hasClientFilter ? 'b.client_id = $1 AND ' : ''}LOWER(COALESCE(g.type, '')) = 'depo'
      ORDER BY b.bill_date DESC, b.id DESC`,
-    [clientId]
+    values
   );
 
   const otherBillsResult = await pool.query(
@@ -234,10 +235,9 @@ const getClientAllBills = async (clientId) => {
      FROM other_bill ob
      LEFT JOIN groups g ON g.id = ob.group_id
      LEFT JOIN users c ON c.id = ob.client_id
-     WHERE ob.client_id = $1
-       AND LOWER(COALESCE(ob.kind, '')) = 'client'
+     WHERE ${hasClientFilter ? 'ob.client_id = $1 AND ' : ''}LOWER(COALESCE(ob.kind, '')) = 'client'
      ORDER BY ob.bill_date DESC, ob.id DESC`,
-    [clientId]
+    values
   );
 
   const processingBillsResult = await pool.query(
@@ -264,9 +264,9 @@ const getClientAllBills = async (clientId) => {
      LEFT JOIN tx ON tx.id = pc.id
      LEFT JOIN groups g ON g.id = pc.processing_group_id
      LEFT JOIN users c ON c.id = pc.client_id
-     WHERE pc.client_id = $1
+     ${hasClientFilter ? 'WHERE pc.client_id = $1' : ''}
      ORDER BY pc.id DESC`,
-    [clientId]
+    values
   );
 
   const paymentBillsResult = await pool.query(
@@ -293,9 +293,9 @@ const getClientAllBills = async (clientId) => {
      LEFT JOIN tx ON tx.id = pgc.id
      LEFT JOIN groups g ON g.id = pgc.processing_group_id
      LEFT JOIN users c ON c.id = pgc.client_id
-     WHERE pgc.client_id = $1
+     ${hasClientFilter ? 'WHERE pgc.client_id = $1' : ''}
      ORDER BY pgc.id DESC`,
-    [clientId]
+    values
   );
 
   return {

@@ -167,8 +167,36 @@ export function getAgentBills() {
 }
 
 export function getClientAllBills(clientId) {
-  const params = new URLSearchParams({ client_id: String(clientId || "") });
+  if (clientId === null || clientId === undefined || String(clientId).trim() === "" || String(clientId).toLowerCase() === "all") {
+    return request("/bills/client-all");
+  }
+  const params = new URLSearchParams({ client_id: String(clientId) });
   return request(`/bills/client-all?${params.toString()}`);
+}
+
+export async function exportClientAllBillsExcel(payload) {
+  const token = localStorage.getItem("authToken");
+  const response = await fetch(`${API_BASE}/bills/client-all/export`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleAuthExpired();
+    }
+    const data = await response.json().catch(() => null);
+    const error = new Error(data?.message || "Export failed");
+    error.status = response.status;
+    error.payload = data;
+    throw error;
+  }
+
+  return response.blob();
 }
 
 export function getAgentAllBills(agentId) {
