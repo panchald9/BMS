@@ -22,6 +22,8 @@ import { useToast } from "../hooks/use-toast";
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"];
 const PHONE_MIN_LENGTH = 10;
 const PHONE_MAX_LENGTH = 12;
+const MAX_ADMIN_PHONES = 5;
+const MAX_EMPLOYEE_PHONES = 5;
 
 function uid() {
   return Math.random().toString(16).slice(2, 10);
@@ -113,8 +115,18 @@ export default function CreateGroupPage() {
   }, [groupName, ownerClientId, groupType, rateMode, sameRate, perBankRates, banks, adminPhones, employeePhones]);
 
   function addPhone(list) {
-    if (list === "admin") setAdminPhones((prev) => [...prev, ""]);
-    else setEmployeePhones((prev) => [...prev, ""]);
+    if (list === "admin") {
+      setAdminPhones((prev) => {
+        if (prev.length >= MAX_ADMIN_PHONES) return prev;
+        return [...prev, ""];
+      });
+      return;
+    }
+
+    setEmployeePhones((prev) => {
+      if (prev.length >= MAX_EMPLOYEE_PHONES) return prev;
+      return [...prev, ""];
+    });
   }
 
   function removePhone(list, index) {
@@ -408,8 +420,13 @@ export default function CreateGroupPage() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border bg-white p-4" data-testid="section-admin-phones">
-                    <div className="text-sm font-semibold" data-testid="text-admin-phones-title">
-                      Admin Phone Number
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold" data-testid="text-admin-phones-title">
+                        Admin Phone Number
+                      </div>
+                      <Badge variant="secondary" data-testid="badge-admin-phone-count">
+                        {adminPhones.length}/{MAX_ADMIN_PHONES}
+                      </Badge>
                     </div>
                     <div className="mt-3 space-y-2" data-testid="list-admin-phones">
                       {adminPhones.map((p, idx) => (
@@ -417,7 +434,6 @@ export default function CreateGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
-                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("admin", idx, e.target.value)}
                             placeholder="10 to 12 digits"
                             pattern="[0-9]*"
@@ -450,15 +466,26 @@ export default function CreateGroupPage() {
                       variant="secondary"
                       className="mt-3 w-full"
                       onClick={() => addPhone("admin")}
+                      disabled={adminPhones.length >= MAX_ADMIN_PHONES}
                       data-testid="button-add-admin-phone"
                     >
                       Add admin phone
                     </Button>
+                    {adminPhones.length >= MAX_ADMIN_PHONES ? (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Maximum {MAX_ADMIN_PHONES} admin phone numbers allowed.
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="rounded-2xl border bg-white p-4" data-testid="section-employee-phones">
-                    <div className="text-sm font-semibold" data-testid="text-employee-phones-title">
-                      Employee Phone Number
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold" data-testid="text-employee-phones-title">
+                        Employee Phone Number
+                      </div>
+                      <Badge variant="secondary" data-testid="badge-employee-phone-count">
+                        {employeePhones.length}/{MAX_EMPLOYEE_PHONES}
+                      </Badge>
                     </div>
                     <div className="mt-3 space-y-2" data-testid="list-employee-phones">
                       {employeePhones.map((p, idx) => (
@@ -466,7 +493,6 @@ export default function CreateGroupPage() {
                           <Input
                             inputMode="tel"
                             value={p}
-                            maxLength={PHONE_MAX_LENGTH}
                             onChange={(e) => updatePhone("employee", idx, e.target.value)}
                             placeholder="10 to 12 digits"
                             pattern="[0-9]*"
@@ -499,10 +525,16 @@ export default function CreateGroupPage() {
                       variant="secondary"
                       className="mt-3 w-full"
                       onClick={() => addPhone("employee")}
+                      disabled={employeePhones.length >= MAX_EMPLOYEE_PHONES}
                       data-testid="button-add-employee-phone"
                     >
                       Add employee phone
                     </Button>
+                    {employeePhones.length >= MAX_EMPLOYEE_PHONES ? (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Maximum {MAX_EMPLOYEE_PHONES} employee phone numbers allowed.
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

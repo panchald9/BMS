@@ -10,6 +10,10 @@ import { Label } from "../components/ui/label";
 import { Separator } from "../components/ui/Separator";
 import { findGroupsByContactNumber } from "../lib/api";
 
+function cleanContactNumber(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 export default function FindeContactPage() {
   const [, setLocation] = useLocation();
   const [number, setNumber] = useState("");
@@ -18,7 +22,7 @@ export default function FindeContactPage() {
   const [results, setResults] = useState([]);
   const [searched, setSearched] = useState(false);
 
-  const canSearch = useMemo(() => number.trim().length > 0, [number]);
+  const canSearch = useMemo(() => cleanContactNumber(number).length > 0, [number]);
 
   async function onSearch(e) {
     e.preventDefault();
@@ -28,7 +32,8 @@ export default function FindeContactPage() {
       setLoading(true);
       setError("");
       setSearched(true);
-      const data = await findGroupsByContactNumber(number.trim());
+      const normalized = cleanContactNumber(number);
+      const data = await findGroupsByContactNumber(normalized);
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
       setResults([]);
@@ -71,7 +76,7 @@ export default function FindeContactPage() {
                   <Input
                     id="contact-number"
                     value={number}
-                    onChange={(e) => setNumber(e.target.value)}
+                    onChange={(e) => setNumber(cleanContactNumber(e.target.value))}
                     placeholder="e.g. 0771234567"
                     className="mt-1 h-11"
                     data-testid="input-find-contact-number"
