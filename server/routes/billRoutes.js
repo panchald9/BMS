@@ -11,6 +11,7 @@ router.get('/agent', authMiddleware, billController.getAgentBills);
 router.get('/client-all', authMiddleware, billController.getClientAllBills);
 router.post('/client-all/export', authMiddleware, billController.exportClientAllBillsExcel);
 router.get('/agent-all', authMiddleware, billController.getAgentAllBills);
+router.post('/agent-all/export', authMiddleware, billController.exportAgentAllBillsExcel);
 router.post('/bulk-upload', authMiddleware, upload.single('file'), billController.bulkUploadBills);
 router.post('/', authMiddleware, billController.createBill);
 router.put('/:id', authMiddleware, billController.updateBill);

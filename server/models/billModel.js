@@ -308,6 +308,9 @@ const getClientAllBills = async (clientId) => {
 };
 
 const getAgentAllBills = async (agentId) => {
+  const hasAgentFilter = Number.isInteger(agentId) && agentId > 0;
+  const values = hasAgentFilter ? [agentId] : [];
+
   const agentBillsResult = await pool.query(
     `SELECT ab.id,
             ab.bill_date,
@@ -322,9 +325,9 @@ const getAgentAllBills = async (agentId) => {
      JOIN groups g ON g.id = ab.group_id
      LEFT JOIN users c ON c.id = ab.client_id
      LEFT JOIN banks bk ON bk.id = ab.bank_id
-     WHERE ab.agent_id = $1
+     ${hasAgentFilter ? 'WHERE ab.agent_id = $1' : ''}
      ORDER BY ab.bill_date DESC, ab.id DESC`,
-    [agentId]
+    values
   );
 
   const agentOtherBillsResult = await pool.query(
@@ -334,10 +337,10 @@ const getAgentAllBills = async (agentId) => {
             ob.amount,
             (COALESCE(ob.amount, 0) * -1) AS total
      FROM other_bill ob
-     WHERE ob.agent_id = $1
-       AND LOWER(COALESCE(ob.kind, '')) = 'agent'
+     WHERE LOWER(COALESCE(ob.kind, '')) = 'agent'
+       ${hasAgentFilter ? 'AND ob.agent_id = $1' : ''}
      ORDER BY ob.bill_date DESC, ob.id DESC`,
-    [agentId]
+    values
   );
 
   return {

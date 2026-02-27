@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { Download } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -8,7 +9,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
 import { DateInput } from "@/components/ui/date-input";
-import { getAgentAllBills, getAgentUsers } from "../lib/api";
+import { exportAgentAllBillsExcel, getAgentAllBills, getAgentUsers } from "../lib/api";
 import {
   endOfMonthISO,
   endOfWeekISO,
@@ -21,7 +22,13 @@ import {
 import { useToast } from "../hooks/use-toast";
 
 const money = (n) => `${Number(n || 0).toFixed(2)} \u20B9`;
-const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const num = (v) => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const cleaned = String(v).replace(/[%,$\s,]/g, "");
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const asISO = (v) => {
   if (!v) return "";
@@ -33,6 +40,7 @@ const asISO = (v) => {
 };
 
 const emptyData = { agentBills: [], agentOtherBills: [] };
+const ALL_AGENTS_VALUE = "all";
 
 function BillsTable({ rows }) {
   const total = rows.reduce((acc, r) => acc + num(r.totalInr), 0);
@@ -42,7 +50,6 @@ function BillsTable({ rows }) {
         <div className="text-sm font-semibold">Agent Bills</div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{rows.length} rows</Badge>
-          <Badge variant="secondary">Total: {money(total)}</Badge>
         </div>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border bg-white">
@@ -59,7 +66,7 @@ function BillsTable({ rows }) {
                   <th className="px-3 py-2 text-left">Source</th>
                   <th className="px-3 py-2 text-left">Bank</th>
                   <th className="px-3 py-2 text-right">Amount ($)</th>
-                  <th className="px-3 py-2 text-right">Rate</th>
+                  <th className="px-3 py-2 text-right">Dollar Rate</th>
                   <th className="px-3 py-2 text-right">Total (₹)</th>
                 </tr>
               </thead>
@@ -81,6 +88,9 @@ function BillsTable({ rows }) {
           </div>
         )}
       </div>
+      <div className="mt-2 flex justify-end text-sm font-semibold">
+        <span>Total: {money(total)}</span>
+      </div>
     </div>
   );
 }
@@ -93,7 +103,6 @@ function OtherTable({ rows }) {
         <div className="text-sm font-semibold">Agent Other Bills</div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{rows.length} rows</Badge>
-          <Badge variant="secondary">Total: {money(total)}</Badge>
         </div>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border bg-white">
@@ -124,6 +133,9 @@ function OtherTable({ rows }) {
           </div>
         )}
       </div>
+      <div className="mt-2 flex justify-end text-sm font-semibold">
+        <span>Total: {money(total)}</span>
+      </div>
     </div>
   );
 }
@@ -133,9 +145,10 @@ export default function AgentAllBillsPage() {
   const { toast } = useToast();
 
   const [agents, setAgents] = useState([]);
-  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState(ALL_AGENTS_VALUE);
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [datePreset, setDatePreset] = useState("all");
   const [fromDDMMYYYY, setFromDDMMYYYY] = useState("");
@@ -148,7 +161,6 @@ export default function AgentAllBillsPage() {
         const rows = await getAgentUsers();
         const mapped = (rows || []).map((x) => ({ id: String(x.id), name: x.name || "" }));
         setAgents(mapped);
-        if (mapped[0]?.id) setSelectedAgentId(mapped[0].id);
       } catch (e) {
         toast({ title: "Load failed", description: e.message || "Unable to load agents", variant: "destructive" });
       }
@@ -163,7 +175,8 @@ export default function AgentAllBillsPage() {
     (async () => {
       try {
         setLoading(true);
-        const res = await getAgentAllBills(selectedAgentId);
+        const agentIdArg = selectedAgentId === ALL_AGENTS_VALUE ? null : selectedAgentId;
+        const res = await getAgentAllBills(agentIdArg);
         setData({
           agentBills: res?.agentBills || [],
           agentOtherBills: res?.agentOtherBills || [],
@@ -265,6 +278,45 @@ export default function AgentAllBillsPage() {
     };
   }, [filtered, filteredAgentBills, filteredAgentOtherBills]);
 
+  const selectedRangeLabel =
+    selectedRange.fromISO && selectedRange.toISO
+      ? `${formatDateDDMMYYYY(selectedRange.fromISO)} - ${formatDateDDMMYYYY(selectedRange.toISO)}`
+      : "All dates";
+
+  const handleDownloadFilteredExcel = async () => {
+    if (!filtered.length || isExporting) return;
+    const agentLabel =
+      selectedAgentId === ALL_AGENTS_VALUE
+        ? "All Agents"
+        : agents.find((a) => a.id === selectedAgentId)?.name || "Selected Agent";
+    try {
+      setIsExporting(true);
+      const blob = await exportAgentAllBillsExcel({
+        agentLabel,
+        dateRangeLabel: selectedRangeLabel,
+        searchText: search.trim() || "N/A",
+        rows: filtered,
+        grandTotalAmount: totals.grandTotal,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `agent_bills_filtered_${todayISO()}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Unable to export Excel file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <AppSidebar>
       <div className="min-h-svh w-full bg-background">
@@ -292,6 +344,7 @@ export default function AgentAllBillsPage() {
                         <SelectValue placeholder="Select Agent" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={ALL_AGENTS_VALUE}>All Agents</SelectItem>
                         {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -342,6 +395,15 @@ export default function AgentAllBillsPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{loading ? "Loading..." : `${totals.count} rows`}</Badge>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={handleDownloadFilteredExcel}
+                    disabled={loading || !filtered.length || isExporting}
+                  >
+                    <Download className="h-4 w-4" />
+                    {isExporting ? "Exporting..." : "Download Excel (Filtered)"}
+                  </Button>
                 </div>
               </div>
 

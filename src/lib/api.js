@@ -199,8 +199,36 @@ export async function exportClientAllBillsExcel(payload) {
   return response.blob();
 }
 
+export async function exportAgentAllBillsExcel(payload) {
+  const token = localStorage.getItem("authToken");
+  const response = await fetch(`${API_BASE}/bills/agent-all/export`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleAuthExpired();
+    }
+    const data = await response.json().catch(() => null);
+    const error = new Error(data?.message || "Export failed");
+    error.status = response.status;
+    error.payload = data;
+    throw error;
+  }
+
+  return response.blob();
+}
+
 export function getAgentAllBills(agentId) {
-  const params = new URLSearchParams({ agent_id: String(agentId || "") });
+  if (agentId === null || agentId === undefined || String(agentId).trim() === "" || String(agentId).toLowerCase() === "all") {
+    return request("/bills/agent-all");
+  }
+  const params = new URLSearchParams({ agent_id: String(agentId) });
   return request(`/bills/agent-all?${params.toString()}`);
 }
 

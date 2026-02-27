@@ -33,7 +33,13 @@ const emptySections = {
 };
 
 const money = (n) => `${Number(n || 0).toFixed(2)} \u20B9`;
-const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const num = (v) => {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const cleaned = String(v).replace(/[%,$\s,]/g, "");
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const asISO = (v) => {
   if (!v) return "";
   const s = String(v);
@@ -116,7 +122,6 @@ function BillTable({ type, rows }) {
         <div className="text-sm font-semibold">{type}</div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{rows.length} rows</Badge>
-          <Badge variant="secondary">Total: {money(total)}</Badge>
         </div>
       </div>
       <div className="mt-3 overflow-hidden rounded-xl border bg-white">
@@ -130,7 +135,7 @@ function BillTable({ type, rows }) {
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Group</th>
                   <th className="px-3 py-2 text-left">Client</th>
-                  {!isOther ? <th className="px-3 py-2 text-left">{isProcOrPay ? "Payment Type" : "Bank"}</th> : null}
+                  {!isOther ? <th className="px-3 py-2 text-left">{isProcOrPay ? "Bank / Payment Type" : "Bank"}</th> : null}
                   <th className="px-3 py-2 text-right">Amount ($)</th>
                   {isProcOrPay ? <th className="px-3 py-2 text-right">%</th> : null}
                   <th className="px-3 py-2 text-right">Dollar Rate</th>
@@ -143,9 +148,15 @@ function BillTable({ type, rows }) {
                     <td className="px-3 py-2">{r.dateISO ? formatDateDDMMYYYY(r.dateISO) : "-"}</td>
                     <td className="px-3 py-2">{r.group || "-"}</td>
                     <td className="px-3 py-2">{r.client || "-"}</td>
-                    {!isOther ? <td className="px-3 py-2">{isProcOrPay ? r.paymentType || "-" : r.bank || "-"}</td> : null}
+                    {!isOther ? (
+                      <td className="px-3 py-2">
+                        {isProcOrPay
+                          ? [r.bank, r.paymentType].filter(Boolean).join(" / ") || "-"
+                          : r.bank || "-"}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2 text-right">{num(r.amountUsd).toFixed(2)}</td>
-                    {isProcOrPay ? <td className="px-3 py-2 text-right">{num(r.pct).toFixed(2)}</td> : null}
+                    {isProcOrPay ? <td className="px-3 py-2 text-right">{num(r.pct).toFixed(2)}%</td> : null}
                     <td className="px-3 py-2 text-right">{r.rate ? num(r.rate).toFixed(2) : "-"}</td>
                     <td className={`px-3 py-2 text-right font-medium ${num(r.totalInr) < 0 ? "text-red-600" : "text-emerald-700"}`}>
                       {num(r.totalInr).toFixed(2)}
@@ -156,6 +167,9 @@ function BillTable({ type, rows }) {
             </table>
           </div>
         )}
+      </div>
+      <div className="mt-2 flex justify-end text-sm font-semibold">
+        <span>Total: {money(total)}</span>
       </div>
     </div>
   );

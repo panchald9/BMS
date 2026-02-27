@@ -177,10 +177,9 @@ exports.exportClientAllBillsExcel = async (req, res) => {
       currentRow++;
 
       worksheet.getCell(`G${currentRow}`).value = `${sectionRows.length} rows`;
-      worksheet.getCell(`H${currentRow}`).value = `Total: ${sectionTotal.toFixed(2)} INR`;
       currentRow++;
 
-      ['Date', 'Group', 'Client', 'Bank', 'Amount ($)', '%', 'Dollar Rate', 'Total (INR)'].forEach((h, i) => {
+      ['Date', 'Group', 'Client', 'Bank / Payment Type', 'Amount ($)', '%', 'Dollar Rate', 'Total (INR)'].forEach((h, i) => {
         worksheet.getCell(currentRow, i + 1).value = h;
         worksheet.getCell(currentRow, i + 1).style = colHeaderStyle;
       });
@@ -197,9 +196,9 @@ exports.exportClientAllBillsExcel = async (req, res) => {
             formatISOToDDMMYYYY(row.dateISO),
             row.group || '-',
             row.client || '-',
-            row.paymentType || row.bank || '-',
+            [row.bank, row.paymentType].filter(Boolean).join(' / ') || '-',
             Number(row.amountUsd || 0),
-            isProcOrPay ? Number(row.pct || 0) : '-',
+            isProcOrPay ? `${Number(row.pct || 0).toFixed(2)}%` : '-',
             row.rate ? Number(row.rate) : '-',
             Number(row.totalInr || 0)
           ]);
@@ -244,11 +243,155 @@ exports.exportClientAllBillsExcel = async (req, res) => {
   }
 };
 
+exports.exportAgentAllBillsExcel = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const agentLabel = String(body.agentLabel || 'All Agents');
+    const dateRangeLabel = String(body.dateRangeLabel || 'All dates');
+    const searchText = String(body.searchText || 'N/A');
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    const providedGrandTotal = Number(body.grandTotalAmount);
+
+    const billRows = rows
+      .filter((row) => String(row?.section || '').toLowerCase() === 'bill')
+      .sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+    const otherRows = rows
+      .filter((row) => String(row?.section || '').toLowerCase() === 'other')
+      .sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+
+    const billTotal = billRows.reduce((acc, row) => acc + Number(row?.totalInr || 0), 0);
+    const otherTotal = otherRows.reduce((acc, row) => acc + Number(row?.totalInr || 0), 0);
+    const computedGrandTotal = Number.isFinite(providedGrandTotal) ? providedGrandTotal : billTotal + otherTotal;
+
+    const formatISOToDDMMYYYY = (iso) => {
+      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? `${m[3]}-${m[2]}-${m[1]}` : iso || '-';
+    };
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Agent Bills');
+    worksheet.columns = [
+      { width: 14 }, { width: 16 }, { width: 16 }, { width: 14 },
+      { width: 18 }, { width: 12 }, { width: 12 }, { width: 14 }
+    ];
+
+    const headerStyle = { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const titleStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const colHeaderStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5B9BD5' } }, alignment: { horizontal: 'center' }, border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+    const grandTotalStyle = { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD966' } }, border: { top: { style: 'medium' }, bottom: { style: 'medium' }, left: { style: 'medium' }, right: { style: 'medium' } } };
+
+    let currentRow = 1;
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Agent: ${agentLabel}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Date Range: ${dateRangeLabel}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Search: ${searchText}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow++;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Rows: ${rows.length}`;
+    worksheet.getCell(`A${currentRow}`).style = headerStyle;
+    currentRow += 2;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = 'Agent Bills';
+    worksheet.getCell(`A${currentRow}`).style = titleStyle;
+    currentRow++;
+    worksheet.getCell(`G${currentRow}`).value = `${billRows.length} rows`;
+    currentRow++;
+    ['Date', 'Group', 'Client', 'Source', 'Bank', 'Amount ($)', 'Dollar Rate', 'Total (INR)'].forEach((h, i) => {
+      worksheet.getCell(currentRow, i + 1).value = h;
+      worksheet.getCell(currentRow, i + 1).style = colHeaderStyle;
+    });
+    currentRow++;
+    if (!billRows.length) {
+      worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+      worksheet.getCell(`A${currentRow}`).value = 'No bills found.';
+      currentRow++;
+    } else {
+      for (const row of billRows) {
+        worksheet.addRow([
+          formatISOToDDMMYYYY(row.dateISO),
+          row.group || '-',
+          row.client || '-',
+          row.source || '-',
+          row.bank || '-',
+          Number(row.amountUsd || 0),
+          Number(row.rate || 0),
+          Number(row.totalInr || 0)
+        ]);
+        currentRow++;
+      }
+    }
+    worksheet.getCell(`G${currentRow}`).value = 'Total:';
+    worksheet.getCell(`G${currentRow}`).font = { bold: true };
+    worksheet.getCell(`H${currentRow}`).value = Number(billTotal.toFixed(2));
+    worksheet.getCell(`H${currentRow}`).font = { bold: true };
+    currentRow += 2;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = 'Agent Other Bills';
+    worksheet.getCell(`A${currentRow}`).style = titleStyle;
+    currentRow++;
+    worksheet.getCell(`G${currentRow}`).value = `${otherRows.length} rows`;
+    currentRow++;
+    ['Date', 'Comment', 'Amount (INR)', 'Total (INR)'].forEach((h, i) => {
+      worksheet.getCell(currentRow, i + 1).value = h;
+      worksheet.getCell(currentRow, i + 1).style = colHeaderStyle;
+    });
+    currentRow++;
+    if (!otherRows.length) {
+      worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+      worksheet.getCell(`A${currentRow}`).value = 'No bills found.';
+      currentRow++;
+    } else {
+      for (const row of otherRows) {
+        worksheet.addRow([
+          formatISOToDDMMYYYY(row.dateISO),
+          row.comment || '-',
+          Number(row.amountInr || 0),
+          Number(row.totalInr || 0)
+        ]);
+        currentRow++;
+      }
+    }
+    worksheet.getCell(`C${currentRow}`).value = 'Total:';
+    worksheet.getCell(`C${currentRow}`).font = { bold: true };
+    worksheet.getCell(`D${currentRow}`).value = Number(otherTotal.toFixed(2));
+    worksheet.getCell(`D${currentRow}`).font = { bold: true };
+    currentRow += 2;
+
+    worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+    worksheet.getCell(`A${currentRow}`).value = `Grand Total: ${computedGrandTotal.toFixed(2)} INR`;
+    worksheet.getCell(`A${currentRow}`).style = grandTotalStyle;
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="agent_bills_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    return res.send(buffer);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getAgentAllBills = async (req, res) => {
   try {
-    const agentId = toNumber(req.query.agent_id);
-    if (!Number.isInteger(agentId) || agentId <= 0) {
-      return res.status(400).json({ message: 'agent_id query param is required' });
+    const rawAgentId = String(req.query.agent_id || '').trim();
+    let agentId = null;
+    if (rawAgentId && rawAgentId.toLowerCase() !== 'all') {
+      const parsedAgentId = toNumber(rawAgentId);
+      if (!Number.isInteger(parsedAgentId) || parsedAgentId <= 0) {
+        return res.status(400).json({ message: 'agent_id must be a positive integer or "all"' });
+      }
+      agentId = parsedAgentId;
     }
     const data = await billModel.getAgentAllBills(agentId);
     return res.json(data);
