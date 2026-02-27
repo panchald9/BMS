@@ -103,3 +103,17 @@ exports.getGroupClientOptionsByType = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+exports.findGroupsByContactNumber = async (req, res) => {
+  try {
+    const number = String(req.query.number || '').trim();
+    if (!number) {
+      return res.status(400).json({ message: 'number query param is required' });
+    }
+
+    const groups = await groupModel.findGroupsByContactNumber(number);
+    return res.json(groups);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};

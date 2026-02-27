@@ -16,6 +16,7 @@ const CreateGroupPage = lazy(() => import("./pages/create-group"));
 const GroupDetailsPage = lazy(() => import("./pages/GroupDetailsPage"));
 const EditGroupPage = lazy(() => import("./pages/EditGroupPage"));
 const AddBillPage = lazy(() => import("./pages/add-bill"));
+const FindContactPage = lazy(() => import("./pages/finde-contact"));
 const ProcessingPaymentPage = lazy(() => import("./pages/processing-payment"));
 const ClientAllBillsPage = lazy(() => import("./pages/client-all-bills"));
 const AgentAllBillsPage = lazy(() => import("./pages/AgentAllBillsPage"));
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/groups/edit/:id" component={EditGroupPage} />
         <Route path="/groups/:id" component={GroupDetailsPage} />
         <Route path="/add-bill" component={AddBillPage} />
+        <Route path="/finde-contact" component={FindContactPage} />
         <Route path="/processing-payment" component={ProcessingPaymentPage} />
         <Route path="/client-all-bills" component={ClientAllBillsPage} />
         <Route path="/agent-bills" component={AgentAllBillsPage} />

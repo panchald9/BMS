@@ -9,6 +9,7 @@ import {
   Settings,
   Users,
   Wallet,
+  Contact
 } from "lucide-react"
 
 import {
@@ -33,7 +34,7 @@ const navItems = [
   { label: "Users", href: "/admin/users", icon: Users, section: "navigation" },
   { label: "Add Bill", href: "/add-bill", icon: BadgeDollarSign, section: "navigation" },
 
-  { label: "All Groups", href: "/groups", icon: Layers, section: "groups" },
+  { label: "Finde Contact", href: "/finde-contact", icon: Contact, section: "navigation" },
   { label: "Client All Bills", href: "/client-all-bills", icon: Wallet, section: "groups" },
   { label: "Agent Bills", href: "/agent-bills", icon: CreditCard, section: "groups" },
   { label: "Processing Payment", href: "/processing-payment", icon: ChevronRight, section: "groups" },

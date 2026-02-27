@@ -127,6 +127,11 @@ export function getGroupClientOptionsByType(type) {
   });
 }
 
+export function findGroupsByContactNumber(number) {
+  const params = new URLSearchParams({ number: String(number || "") });
+  return request(`/groups/find-contact?${params.toString()}`);
+}
+
 export function getGroupById(id) {
   return request(`/groups/${id}`);
 }

@@ -130,6 +130,111 @@ const getGroupClientOptionsByType = async (type) => {
   }));
 };
 
+const findGroupsByContactNumber = async (number) => {
+  const search = `%${String(number || '').trim()}%`;
+  const matchesResult = await pool.query(
+    `SELECT m.group_id,
+            g.name AS group_name,
+            g.type AS group_type,
+            g.owner,
+            u.name AS owner_name,
+            g.same_rate,
+            m.matched_number,
+            m.matched_from
+     FROM (
+       SELECT group_id, number AS matched_number, 'admin'::text AS matched_from
+       FROM group_admin_numbers
+       WHERE number ILIKE $1
+       UNION ALL
+       SELECT group_id, number AS matched_number, 'employee'::text AS matched_from
+       FROM group_employee_numbers
+       WHERE number ILIKE $1
+     ) m
+     JOIN groups g ON g.id = m.group_id
+     LEFT JOIN users u ON u.id = g.owner
+     ORDER BY g.id ASC, m.matched_from ASC, m.matched_number ASC`,
+    [search]
+  );
+
+  if (!matchesResult.rows.length) {
+    return [];
+  }
+
+  const groupsById = new Map();
+  for (const row of matchesResult.rows) {
+    const groupId = String(row.group_id);
+    if (!groupsById.has(groupId)) {
+      groupsById.set(groupId, {
+        id: groupId,
+        name: row.group_name || '',
+        type: row.group_type || '',
+        owner: row.owner !== null && row.owner !== undefined ? String(row.owner) : '',
+        ownerName: row.owner_name || '',
+        sameRate: row.same_rate !== null && row.same_rate !== undefined ? String(row.same_rate) : '',
+        matches: [],
+        banks: [],
+        adminNumbers: [],
+        employeeNumbers: []
+      });
+    }
+
+    groupsById.get(groupId).matches.push({
+      source: row.matched_from,
+      number: row.matched_number
+    });
+  }
+
+  const groupIds = Array.from(groupsById.keys()).map((id) => Number(id));
+  const [banksResult, adminNumbersResult, employeeNumbersResult] = await Promise.all([
+    pool.query(
+      `SELECT gbr.group_id, gbr.bank_id, gbr.rate, b.bank_name
+       FROM group_bank_rate gbr
+       JOIN banks b ON b.id = gbr.bank_id
+       WHERE gbr.group_id = ANY($1::int[])
+       ORDER BY gbr.group_id ASC, b.bank_name ASC`,
+      [groupIds]
+    ),
+    pool.query(
+      `SELECT group_id, number
+       FROM group_admin_numbers
+       WHERE group_id = ANY($1::int[])
+       ORDER BY group_id ASC, number ASC`,
+      [groupIds]
+    ),
+    pool.query(
+      `SELECT group_id, number
+       FROM group_employee_numbers
+       WHERE group_id = ANY($1::int[])
+       ORDER BY group_id ASC, number ASC`,
+      [groupIds]
+    )
+  ]);
+
+  for (const row of banksResult.rows) {
+    const group = groupsById.get(String(row.group_id));
+    if (!group) continue;
+    group.banks.push({
+      bankId: String(row.bank_id),
+      bankName: row.bank_name,
+      rate: row.rate !== null && row.rate !== undefined ? String(row.rate) : ''
+    });
+  }
+
+  for (const row of adminNumbersResult.rows) {
+    const group = groupsById.get(String(row.group_id));
+    if (!group) continue;
+    group.adminNumbers.push(row.number);
+  }
+
+  for (const row of employeeNumbersResult.rows) {
+    const group = groupsById.get(String(row.group_id));
+    if (!group) continue;
+    group.employeeNumbers.push(row.number);
+  }
+
+  return Array.from(groupsById.values());
+};
+
 module.exports = {
   getAllGroups,
   getGroupById,
@@ -138,5 +243,6 @@ module.exports = {
   deleteGroup,
   getGroupFullData,
   getGroupsBillConfigByType,
-  getGroupClientOptionsByType
+  getGroupClientOptionsByType,
+  findGroupsByContactNumber
 };
