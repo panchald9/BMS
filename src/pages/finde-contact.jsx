@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { useLocation } from "wouter";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -10,6 +11,7 @@ import { Separator } from "../components/ui/Separator";
 import { findGroupsByContactNumber } from "../lib/api";
 
 export default function FindeContactPage() {
+  const [, setLocation] = useLocation();
   const [number, setNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -148,6 +150,16 @@ export default function FindeContactPage() {
                             <div className="mt-1 text-sm text-muted-foreground">No bank rates</div>
                           )}
                         </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setLocation(`/groups/${group.id}`)}
+                          data-testid={`button-view-group-${group.id}`}
+                        >
+                          View Group
+                        </Button>
                       </div>
                     </div>
                   ))}

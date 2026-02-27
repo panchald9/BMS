@@ -32,6 +32,7 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, section: "navigation" },
   { label: "Banks", href: "/banks", icon: Building2, section: "navigation" },
   { label: "Users", href: "/admin/users", icon: Users, section: "navigation" },
+  { label: "Groups", href: "/groups", icon: Layers, section: "navigation" },
   { label: "Add Bill", href: "/add-bill", icon: BadgeDollarSign, section: "navigation" },
 
   { label: "Finde Contact", href: "/finde-contact", icon: Contact, section: "navigation" },
