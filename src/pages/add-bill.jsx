@@ -172,7 +172,7 @@ export default function AddBillPage() {
   }
 
   const handleDownloadTemplate = () => {
-    const csvContent = "Date,Group,Agent,Bank,Amount,Total\n01-10-2026,Sample Group,Sample Agent,Sample Bank,100,550"
+    const csvContent = "Date,Group,Amount,Bank,Agent\n01-10-2026,Sample Group,100,Sample Bank,Sample Agent"
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -955,7 +955,7 @@ export default function AddBillPage() {
                         <DialogHeader>
                           <DialogTitle>Bulk Upload {tab}</DialogTitle>
                           <DialogDescription>
-                            Upload a CSV or Excel file containing bill data.
+                            Upload CSV/XLS/XLSX with columns: Date, Group, Amount, Bank, Agent.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
