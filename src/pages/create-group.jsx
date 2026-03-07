@@ -81,6 +81,11 @@ export default function CreateGroupPage() {
   const [pastMembers, setPastMembers] = useState([]);
   const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
 
+  const selectedClient = useMemo(
+    () => clients.find((c) => String(c.id) === String(ownerClientId)) || null,
+    [clients, ownerClientId]
+  );
+
   useEffect(() => {
     getClientUsers()
       .then((data) => {
@@ -100,6 +105,18 @@ export default function CreateGroupPage() {
         .finally(() => setLoadingBanks(false));
     }
   }, [rateMode, banks.length]);
+
+  useEffect(() => {
+    if (!selectedClient) return;
+    const clientName = String(selectedClient.name || "").trim();
+    const clientPhone = cleanPhone(selectedClient.phone || selectedClient.alternate_phone || "");
+    setAdminPhones((prev) => {
+      if (!prev.length) return [{ name: clientName, number: clientPhone }];
+      const next = prev.slice();
+      next[0] = { ...next[0], name: clientName, number: clientPhone };
+      return next;
+    });
+  }, [selectedClient]);
 
   const canCreate = useMemo(() => {
     if (!groupName.trim()) return false;

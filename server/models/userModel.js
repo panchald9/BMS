@@ -161,7 +161,7 @@ const deleteUserById = async (id) => {
 
 const getUsersByRole = async (role) => {
   const result = await pool.query(
-    `SELECT id, name
+    `SELECT id, name, phone, alternate_phone
      FROM users
      WHERE role = $1
      ORDER BY id ASC`,
