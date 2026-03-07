@@ -32,7 +32,7 @@ import { Card } from "../components/ui/Card";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/Select";
+import { SearchableSelect } from "../components/ui/SearchableSelect";
 import { useToast } from "../hooks/use-toast";
 
 const STEPS = ["Add Payment", "Payment Type", "Dollar Rate", "Processing Details", "Client Details"];
@@ -199,6 +199,19 @@ export default function ProcessingPaymentPage() {
       };
     }).filter((r) => r.tx || r.calc);
   }, [transactions, paymentCalcs, paymentGroups]);
+
+  const paymentTypeOptions = useMemo(
+    () => paymentMethods.map((m) => ({ value: m.id, label: m.name })),
+    [paymentMethods]
+  );
+  const processingGroupOptions = useMemo(
+    () => processingGroups.map((g) => ({ value: g.id, label: g.name })),
+    [processingGroups]
+  );
+  const paymentGroupOptions = useMemo(
+    () => paymentGroups.map((g) => ({ value: g.id, label: g.name })),
+    [paymentGroups]
+  );
 
   async function loadAll() {
     try {
@@ -492,7 +505,15 @@ export default function ProcessingPaymentPage() {
                 <div className="flex items-center gap-2 text-sm font-semibold"><Info className="h-4 w-4 text-primary" /> Transaction Details</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div><Label>Date</Label><Input type="date" value={date} onChange={(e) => onDateChange(e.target.value)} /></div>
-                  <div><Label>Payment Type</Label><Select value={paymentTypeId} onValueChange={setPaymentTypeId}><SelectTrigger><SelectValue placeholder="Select Method..." /></SelectTrigger><SelectContent>{paymentMethods.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div>
+                    <Label>Payment Type</Label>
+                    <SearchableSelect
+                      value={paymentTypeId}
+                      onValueChange={setPaymentTypeId}
+                      options={paymentTypeOptions}
+                      placeholder="Select Method..."
+                    />
+                  </div>
                   <div><Label>Amount ($)</Label><Input type="number" min={0} step="any" value={amountUsd} onChange={(e) => setAmountUsd(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
                   <div><Label>Rate (₹)</Label><Input value={dollarRateNum > 0 ? dollarRateNum.toFixed(2) : ""} readOnly /></div>
                 </div>
@@ -500,7 +521,15 @@ export default function ProcessingPaymentPage() {
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Processing Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div><Label>Processing %</Label><Input inputMode="decimal" type="number"  value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
-                  <div><Label>Processing Group</Label><Select value={processingGroupId} onValueChange={setProcessingGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{processingGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div>
+                    <Label>Processing Group</Label>
+                    <SearchableSelect
+                      value={processingGroupId}
+                      onValueChange={setProcessingGroupId}
+                      options={processingGroupOptions}
+                      placeholder="Select Group..."
+                    />
+                  </div>
                   <div><Label>Client</Label><Input readOnly value={selectedProcessingGroup?.clientName || ""} /></div>
                   <div><Label>Processing Total (₹)</Label><Input readOnly value={processingTotal.toFixed(2)} /></div>
                 </div>
@@ -514,7 +543,15 @@ export default function ProcessingPaymentPage() {
                       <p className="mt-1 text-xs text-red-600">Payment Group % cannot be greater than Processing %.</p>
                     ) : null}
                   </div>
-                  <div><Label>Payment Group</Label><Select value={paymentGroupId} onValueChange={setPaymentGroupId}><SelectTrigger><SelectValue placeholder="Select Group..." /></SelectTrigger><SelectContent>{paymentGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div>
+                    <Label>Payment Group</Label>
+                    <SearchableSelect
+                      value={paymentGroupId}
+                      onValueChange={setPaymentGroupId}
+                      options={paymentGroupOptions}
+                      placeholder="Select Group..."
+                    />
+                  </div>
                   <div><Label>Client</Label><Input readOnly value={selectedPaymentGroup?.clientName || ""} /></div>
                   <div><Label>Payment Total (₹)</Label><Input readOnly value={paymentTotal.toFixed(2)} /></div>
                 </div>

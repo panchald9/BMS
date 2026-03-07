@@ -521,7 +521,10 @@ exports.bulkUploadBills = async (req, res) => {
       return res.status(400).json({ message: 'File must include a header row and at least one data row' });
     }
 
-    const requiredColumns = ['Date', 'Group', 'Agent', 'Bank', 'Amount', 'Total'];
+    const requiredColumns = ['Date', 'Group', 'Agent', 'Bank', 'Amount'];
+    const strictTotalValidation = String(req.query.strict_total ?? req.body?.strict_total ?? '')
+      .trim()
+      .toLowerCase() === 'true';
     const headerRow = (matrix[0] || []).map((v) => String(v || '').trim());
     const headerIndexByKey = new Map();
     headerRow.forEach((header, index) => {
@@ -669,16 +672,18 @@ exports.bulkUploadBills = async (req, res) => {
         rowErrors.push('Rate could not be derived from group configuration');
       }
 
-      const expectedTotal = Number((amount * derivedRate).toFixed(2));
-      const totalIsBlank = String(totalRaw ?? '').trim() === '';
-      if (!totalIsBlank) {
-        const total = toNumber(totalRaw);
-        if (!Number.isFinite(total) || total < 0) {
-          rowErrors.push('Total must be a valid number');
-        } else if (Number.isFinite(amount) && Number.isFinite(derivedRate)) {
-          const providedTotal = Number(total.toFixed(2));
-          if (Math.abs(providedTotal - expectedTotal) > 0.01) {
-            rowErrors.push(`Total mismatch. Expected ${expectedTotal}, received ${providedTotal}`);
+      if (strictTotalValidation) {
+        const expectedTotal = Number((amount * derivedRate).toFixed(2));
+        const totalIsBlank = String(totalRaw ?? '').trim() === '';
+        if (!totalIsBlank) {
+          const total = toNumber(totalRaw);
+          if (!Number.isFinite(total) || total < 0) {
+            rowErrors.push('Total must be a valid number');
+          } else if (Number.isFinite(amount) && Number.isFinite(derivedRate)) {
+            const providedTotal = Number(total.toFixed(2));
+            if (Math.abs(providedTotal - expectedTotal) > 0.01) {
+              rowErrors.push(`Total mismatch. Expected ${expectedTotal}, received ${providedTotal}`);
+            }
           }
         }
       }
@@ -728,7 +733,8 @@ exports.bulkUploadBills = async (req, res) => {
       message: 'Bulk upload successful',
       totalRows: dataRows.length,
       failedRows: 0,
-      insertedCount: inserted.length
+      insertedCount: inserted.length,
+      strictTotalValidation
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
