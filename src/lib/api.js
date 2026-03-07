@@ -98,10 +98,36 @@ export function createGroupAdminNumber(payload) {
   });
 }
 
+export function updateGroupAdminNumber(id, payload) {
+  return request(`/group-admin-numbers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteGroupAdminNumber(id) {
+  return request(`/group-admin-numbers/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export function createGroupEmployeeNumber(payload) {
   return request("/group-employee-numbers", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function updateGroupEmployeeNumber(id, payload) {
+  return request(`/group-employee-numbers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteGroupEmployeeNumber(id) {
+  return request(`/group-employee-numbers/${id}`, {
+    method: "DELETE",
   });
 }
 

@@ -23,7 +23,11 @@ import {
   updateGroup as updateGroupApi,
   createGroupBankRate,
   createGroupAdminNumber,
+  updateGroupAdminNumber,
+  deleteGroupAdminNumber,
   createGroupEmployeeNumber,
+  updateGroupEmployeeNumber,
+  deleteGroupEmployeeNumber,
   createGroupPastMember,
   updateGroupPastMember,
   deleteGroupPastMember
@@ -39,7 +43,7 @@ function cleanPhone(v) {
 }
 
 function emptyPhoneRow() {
-  return { name: "", number: "" };
+  return { rowId: null, name: "", number: "" };
 }
 
 function emptyPastMemberDraft() {
@@ -90,6 +94,11 @@ export default function EditGroupPage() {
   const [pastMembers, setPastMembers] = useState([]);
   const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
 
+  const selectedClient = useMemo(
+    () => clients.find((c) => String(c.id) === String(ownerClientId)) || null,
+    [clients, ownerClientId]
+  );
+
   useEffect(() => {
     Promise.all([
       getGroupFullData(groupId),
@@ -116,12 +125,12 @@ export default function EditGroupPage() {
 
           setAdminPhones(
             groupData.adminNumbers?.length
-              ? groupData.adminNumbers.map((n) => ({ name: n.name || "", number: n.number || "" }))
+              ? groupData.adminNumbers.map((n) => ({ rowId: Number(n.id), name: n.name || "", number: n.number || "" }))
               : [emptyPhoneRow()]
           );
           setEmployeePhones(
             groupData.employeeNumbers?.length
-              ? groupData.employeeNumbers.map((n) => ({ name: n.name || "", number: n.number || "" }))
+              ? groupData.employeeNumbers.map((n) => ({ rowId: Number(n.id), name: n.name || "", number: n.number || "" }))
               : [emptyPhoneRow()]
           );
           setPastMembers(
@@ -140,6 +149,25 @@ export default function EditGroupPage() {
       .catch((err) => console.error("Failed to load data:", err))
       .finally(() => setLoading(false));
   }, [groupId]);
+
+  useEffect(() => {
+    if (!selectedClient) return;
+    const clientName = String(selectedClient.name || "").trim();
+    const clientPhone = normalizeDigits(selectedClient.phone || selectedClient.alternate_phone || "");
+    setAdminPhones((prev) => {
+      if (!prev.length) return [{ rowId: null, name: clientName, number: clientPhone }];
+      const next = prev.slice();
+      const first = next[0] || emptyPhoneRow();
+      const firstName = String(first.name || "").trim();
+      const firstNumber = normalizeDigits(first.number || "");
+      next[0] = {
+        ...first,
+        name: firstName || clientName,
+        number: firstNumber || clientPhone
+      };
+      return next;
+    });
+  }, [selectedClient]);
 
   const rateErrors = useMemo(() => {
     if (!isClaimOrDepo(groupType)) return { same: false, byBank: {} };
@@ -330,6 +358,65 @@ export default function EditGroupPage() {
     }
   }
 
+  function normalizePhoneRows(rows) {
+    return (Array.isArray(rows) ? rows : [])
+      .map((row) => ({
+        rowId: row?.rowId ? Number(row.rowId) : null,
+        name: String(row?.name || "").trim(),
+        number: normalizeDigits(row?.number || "")
+      }))
+      .filter((row) => isValidPhone(row.number));
+  }
+
+  async function syncPhoneNumbers(groupIdValue) {
+    const existingAdmins = Array.isArray(group?.adminNumbers) ? group.adminNumbers : [];
+    const existingEmployees = Array.isArray(group?.employeeNumbers) ? group.employeeNumbers : [];
+
+    const adminRows = normalizePhoneRows(adminPhones);
+    const employeeRows = normalizePhoneRows(employeePhones);
+
+    const existingAdminIds = new Set(existingAdmins.map((row) => Number(row.id)).filter(Number.isFinite));
+    const existingEmployeeIds = new Set(existingEmployees.map((row) => Number(row.id)).filter(Number.isFinite));
+    const currentAdminIds = new Set(adminRows.map((row) => row.rowId).filter(Number.isFinite));
+    const currentEmployeeIds = new Set(employeeRows.map((row) => row.rowId).filter(Number.isFinite));
+
+    const requests = [];
+
+    for (const row of adminRows) {
+      const payload = { group_id: groupIdValue, name: row.name || null, number: row.number };
+      if (Number.isFinite(row.rowId) && existingAdminIds.has(row.rowId)) {
+        requests.push(updateGroupAdminNumber(row.rowId, payload));
+      } else {
+        requests.push(createGroupAdminNumber(payload));
+      }
+    }
+
+    for (const row of employeeRows) {
+      const payload = { group_id: groupIdValue, name: row.name || null, number: row.number };
+      if (Number.isFinite(row.rowId) && existingEmployeeIds.has(row.rowId)) {
+        requests.push(updateGroupEmployeeNumber(row.rowId, payload));
+      } else {
+        requests.push(createGroupEmployeeNumber(payload));
+      }
+    }
+
+    for (const row of existingAdmins) {
+      const id = Number(row.id);
+      if (Number.isFinite(id) && !currentAdminIds.has(id)) {
+        requests.push(deleteGroupAdminNumber(id));
+      }
+    }
+
+    for (const row of existingEmployees) {
+      const id = Number(row.id);
+      if (Number.isFinite(id) && !currentEmployeeIds.has(id)) {
+        requests.push(deleteGroupEmployeeNumber(id));
+      }
+    }
+
+    if (requests.length) await Promise.all(requests);
+  }
+
   async function onSave(e) {
     e.preventDefault();
     if (!group || !canSave) return;
@@ -373,6 +460,7 @@ export default function EditGroupPage() {
       }
 
       await updateGroupApi(group.id, groupPayload);
+      await syncPhoneNumbers(group.id);
       toast({
         title: "Group updated",
         description: `${groupName} has been updated successfully.`,

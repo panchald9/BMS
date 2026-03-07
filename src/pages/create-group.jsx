@@ -113,7 +113,14 @@ export default function CreateGroupPage() {
     setAdminPhones((prev) => {
       if (!prev.length) return [{ name: clientName, number: clientPhone }];
       const next = prev.slice();
-      next[0] = { ...next[0], name: clientName, number: clientPhone };
+      const first = next[0] || emptyPhoneRow();
+      const firstName = String(first.name || "").trim();
+      const firstNumber = cleanPhone(first.number || "");
+      next[0] = {
+        ...first,
+        name: firstName || clientName,
+        number: firstNumber || clientPhone
+      };
       return next;
     });
   }, [selectedClient]);
