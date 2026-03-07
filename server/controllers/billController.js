@@ -1,10 +1,18 @@
 const billModel = require('../models/billModel');
 const XLSX = require('xlsx');
 const ExcelJS = require('exceljs');
+const { validateBillDateInput } = require('../utils/billDate');
 
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
+}
+
+function toISODateLocal(date) {
+  const y = String(date.getFullYear()).padStart(4, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function normalizeKey(value) {
@@ -27,7 +35,7 @@ function normalizeSource(value) {
 
 function parseDateToISO(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    return toISODateLocal(value);
   }
 
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -53,7 +61,7 @@ function parseDateToISO(value) {
   }
 
   const dt = new Date(s);
-  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+  if (!Number.isNaN(dt.getTime())) return toISODateLocal(dt);
   return '';
 }
 
@@ -415,9 +423,13 @@ exports.createBill = async (req, res) => {
     if (!bill_date || !group_id || !client_id || !agent_id || amount === undefined || amount === null) {
       return res.status(400).json({ message: 'bill_date, group_id, client_id, agent_id and amount are required' });
     }
+    const parsedBillDate = validateBillDateInput(bill_date);
+    if (!parsedBillDate.ok) {
+      return res.status(400).json({ message: parsedBillDate.message });
+    }
 
     const payload = {
-      bill_date,
+      bill_date: parsedBillDate.value,
       group_id: toNumber(group_id),
       bank_id: bank_id === undefined || bank_id === null || bank_id === '' ? null : toNumber(bank_id),
       client_id: toNumber(client_id),
@@ -463,9 +475,13 @@ exports.updateBill = async (req, res) => {
     if (!bill_date || !group_id || !client_id || !agent_id || amount === undefined || amount === null) {
       return res.status(400).json({ message: 'bill_date, group_id, client_id, agent_id and amount are required' });
     }
+    const parsedBillDate = validateBillDateInput(bill_date);
+    if (!parsedBillDate.ok) {
+      return res.status(400).json({ message: parsedBillDate.message });
+    }
 
     const payload = {
-      bill_date,
+      bill_date: parsedBillDate.value,
       group_id: toNumber(group_id),
       bank_id: bank_id === undefined || bank_id === null || bank_id === '' ? null : toNumber(bank_id),
       client_id: toNumber(client_id),

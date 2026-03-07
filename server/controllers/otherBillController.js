@@ -1,4 +1,5 @@
 const otherBillModel = require('../models/otherBillModel');
+const { validateBillDateInput } = require('../utils/billDate');
 
 function toNumber(value) {
   const n = Number(value);
@@ -41,10 +42,14 @@ exports.createOtherBill = async (req, res) => {
     if (!bill_date || amount === undefined || amount === null) {
       return res.status(400).json({ message: 'bill_date and amount are required' });
     }
+    const parsedBillDate = validateBillDateInput(bill_date);
+    if (!parsedBillDate.ok) {
+      return res.status(400).json({ message: parsedBillDate.message });
+    }
 
     const payload = {
       kind,
-      bill_date,
+      bill_date: parsedBillDate.value,
       group_id: group_id === undefined || group_id === null || group_id === '' ? null : toNumber(group_id),
       client_id: client_id === undefined || client_id === null || client_id === '' ? null : toNumber(client_id),
       agent_id: agent_id === undefined || agent_id === null || agent_id === '' ? null : toNumber(agent_id),
@@ -107,10 +112,14 @@ exports.updateOtherBill = async (req, res) => {
     if (!bill_date || amount === undefined || amount === null) {
       return res.status(400).json({ message: 'bill_date and amount are required' });
     }
+    const parsedBillDate = validateBillDateInput(bill_date);
+    if (!parsedBillDate.ok) {
+      return res.status(400).json({ message: parsedBillDate.message });
+    }
 
     const payload = {
       kind,
-      bill_date,
+      bill_date: parsedBillDate.value,
       group_id: group_id === undefined || group_id === null || group_id === '' ? null : toNumber(group_id),
       client_id: client_id === undefined || client_id === null || client_id === '' ? null : toNumber(client_id),
       agent_id: agent_id === undefined || agent_id === null || agent_id === '' ? null : toNumber(agent_id),
@@ -156,4 +165,3 @@ exports.deleteOtherBill = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-

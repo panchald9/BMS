@@ -89,7 +89,10 @@ function hasSameRateValue(group) {
 function normalizeDateValue(value) {
   if (!value) return ""
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10)
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, "0")
+    const d = String(value.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
   }
   const s = String(value).trim()
   if (!s) return ""
