@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { Layers, Save, X } from "lucide-react";
+import { Layers, Plus, Save, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -16,14 +16,43 @@ import {
 } from "../components/ui/Select";
 import { Separator } from "../components/ui/Separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { getGroupFullData, getClientUsers, getBanks, updateGroup as updateGroupApi, createGroupBankRate, createGroupAdminNumber, createGroupEmployeeNumber } from "../lib/api";
+import {
+  getGroupFullData,
+  getClientUsers,
+  getBanks,
+  updateGroup as updateGroupApi,
+  createGroupBankRate,
+  createGroupAdminNumber,
+  createGroupEmployeeNumber,
+  createGroupPastMember,
+  updateGroupPastMember,
+  deleteGroupPastMember
+} from "../lib/api";
 import { useToast } from "../hooks/use-toast";
 
 const GROUP_TYPES = ["Claim", "Depo", "Processing", "Payment"];
+const MEMBER_TYPES = ["admin", "employee"];
 const PHONE_MAX_LENGTH = 12;
 
 function cleanPhone(v) {
   return v.replace(/\s+/g, " ").trim();
+}
+
+function emptyPhoneRow() {
+  return { name: "", number: "" };
+}
+
+function emptyPastMemberDraft() {
+  return { member_type: "employee", name: "", number: "" };
+}
+
+function normalizeDigits(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
+function isValidPhone(v) {
+  const n = normalizeDigits(v);
+  return n.length >= 10 && n.length <= 12;
 }
 
 function isClaimOrDepo(t) {
@@ -56,8 +85,10 @@ export default function EditGroupPage() {
   const [sameRate, setSameRate] = useState("");
   const [perBankRates, setPerBankRates] = useState({});
 
-  const [adminPhones, setAdminPhones] = useState([""]);
-  const [employeePhones, setEmployeePhones] = useState([""]);
+  const [adminPhones, setAdminPhones] = useState([emptyPhoneRow()]);
+  const [employeePhones, setEmployeePhones] = useState([emptyPhoneRow()]);
+  const [pastMembers, setPastMembers] = useState([]);
+  const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
 
   useEffect(() => {
     Promise.all([
@@ -83,8 +114,27 @@ export default function EditGroupPage() {
           });
           setPerBankRates(rates);
 
-          setAdminPhones(groupData.adminNumbers?.length ? groupData.adminNumbers.map(n => n.number) : [""]);
-          setEmployeePhones(groupData.employeeNumbers?.length ? groupData.employeeNumbers.map(n => n.number) : [""]);
+          setAdminPhones(
+            groupData.adminNumbers?.length
+              ? groupData.adminNumbers.map((n) => ({ name: n.name || "", number: n.number || "" }))
+              : [emptyPhoneRow()]
+          );
+          setEmployeePhones(
+            groupData.employeeNumbers?.length
+              ? groupData.employeeNumbers.map((n) => ({ name: n.name || "", number: n.number || "" }))
+              : [emptyPhoneRow()]
+          );
+          setPastMembers(
+            groupData.pastMembers?.length
+              ? groupData.pastMembers.map((m) => ({
+                  id: m.id,
+                  member_type: m.member_type || "employee",
+                  name: m.name || "",
+                  number: m.number || "",
+                  source: m.source || "manual"
+                }))
+              : []
+          );
         }
       })
       .catch((err) => console.error("Failed to load data:", err))
@@ -126,41 +176,45 @@ export default function EditGroupPage() {
       }
     }
 
-    const anyAdminPhone = adminPhones.some((p) => cleanPhone(p).length > 0);
-    const anyEmpPhone = employeePhones.some((p) => cleanPhone(p).length > 0);
+    const anyAdminPhone = adminPhones.some((p) => cleanPhone(p.number).length > 0);
+    const anyEmpPhone = employeePhones.some((p) => cleanPhone(p.number).length > 0);
     if (!anyAdminPhone && !anyEmpPhone) return false;
 
     return true;
   }, [groupName, ownerClientId, groupType, rateMode, sameRate, perBankRates, banks, adminPhones, employeePhones]);
 
   function addPhone(list) {
-    if (list === "admin") setAdminPhones((prev) => [...prev, ""]);
-    else setEmployeePhones((prev) => [...prev, ""]);
+    if (list === "admin") setAdminPhones((prev) => [...prev, emptyPhoneRow()]);
+    else setEmployeePhones((prev) => [...prev, emptyPhoneRow()]);
   }
 
   function removePhone(list, index) {
     if (list === "admin") {
+      const removed = adminPhones[index];
       setAdminPhones((prev) => {
         const next = prev.slice();
         next.splice(index, 1);
-        return next.length ? next : [""];
+        return next.length ? next : [emptyPhoneRow()];
       });
+      addPastMemberFromRow("admin", removed, "removed");
       return;
     }
 
+    const removed = employeePhones[index];
     setEmployeePhones((prev) => {
       const next = prev.slice();
       next.splice(index, 1);
-      return next.length ? next : [""];
+      return next.length ? next : [emptyPhoneRow()];
     });
+    addPastMemberFromRow("employee", removed, "removed");
   }
 
-  function updatePhone(list, index, value) {
-    const nextValue = value.slice(0, PHONE_MAX_LENGTH);
+  function updatePhone(list, index, field, value) {
+    const nextValue = field === "number" ? value.slice(0, PHONE_MAX_LENGTH) : value;
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();
-        next[index] = nextValue;
+        next[index] = { ...next[index], [field]: nextValue };
         return next;
       });
       return;
@@ -168,14 +222,129 @@ export default function EditGroupPage() {
 
     setEmployeePhones((prev) => {
       const next = prev.slice();
-      next[index] = nextValue;
+      next[index] = { ...next[index], [field]: nextValue };
       return next;
     });
   }
 
-  function onSave(e) {
+  async function persistPastMember(payload) {
+    if (!group?.id) return;
+    const number = normalizeDigits(payload?.number);
+    if (!isValidPhone(number)) return;
+
+    const exists = pastMembers.some(
+      (m) => m.member_type === payload.member_type && normalizeDigits(m.number) === number
+    );
+    if (exists) return;
+
+    try {
+      const created = await createGroupPastMember({
+        group_id: group.id,
+        member_type: payload.member_type,
+        name: String(payload.name || "").trim() || null,
+        number,
+        source: payload.source || "manual"
+      });
+      setPastMembers((prev) => [...prev, created]);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add past member",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function addPastMemberFromRow(memberType, row, source = "manual") {
+    const normalizedType = String(memberType || "").trim().toLowerCase();
+    if (!MEMBER_TYPES.includes(normalizedType)) return;
+    persistPastMember({
+      member_type: normalizedType,
+      name: String(row?.name || "").trim(),
+      number: row?.number || "",
+      source
+    });
+  }
+
+  function addPastMemberManually() {
+    addPastMemberFromRow(pastMemberDraft.member_type, pastMemberDraft, "manual");
+    setPastMemberDraft((prev) => ({ ...prev, name: "", number: "" }));
+  }
+
+  function updatePastMemberLocal(id, field, value) {
+    setPastMembers((prev) =>
+      prev.map((m) => {
+        if (String(m.id) !== String(id)) return m;
+        const nextValue =
+          field === "number" ? normalizeDigits(value).slice(0, PHONE_MAX_LENGTH) : String(value || "");
+        return { ...m, [field]: nextValue };
+      })
+    );
+  }
+
+  async function savePastMember(member) {
+    if (!group?.id || !member?.id) return;
+    const normalizedNumber = normalizeDigits(member.number);
+    if (!isValidPhone(normalizedNumber)) {
+      toast({
+        title: "Error",
+        description: "Past member number must be 10 to 12 digits",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updated = await updateGroupPastMember(member.id, {
+        group_id: group.id,
+        member_type: member.member_type,
+        name: String(member.name || "").trim() || null,
+        number: normalizedNumber,
+        source: member.source || "manual"
+      });
+      setPastMembers((prev) => prev.map((m) => (String(m.id) === String(member.id) ? updated : m)));
+      toast({
+        title: "Past member updated",
+        description: "Changes saved successfully.",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update past member",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function removePastMember(id) {
+    if (!id) return;
+    try {
+      await deleteGroupPastMember(id);
+      setPastMembers((prev) => prev.filter((m) => String(m.id) !== String(id)));
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete past member",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function onSave(e) {
     e.preventDefault();
     if (!group || !canSave) return;
+    const draftNumber = normalizeDigits(pastMemberDraft.number);
+    const hasDraftInput =
+      String(pastMemberDraft.name || "").trim().length > 0 ||
+      String(pastMemberDraft.number || "").trim().length > 0;
+    if (hasDraftInput && !isValidPhone(draftNumber)) {
+      toast({
+        title: "Error",
+        description: "Past member number must be 10 to 12 digits.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const groupPayload = {
       name: groupName.trim(),
@@ -184,21 +353,38 @@ export default function EditGroupPage() {
       ...(rateMode === "same" && isClaimOrDepo(groupType) ? { same_rate: Number(sameRate) } : {})
     };
 
-    updateGroupApi(group.id, groupPayload)
-      .then(() => {
-        toast({
-          title: "Group updated",
-          description: `${groupName} has been updated successfully.`,
-        });
-        setLocation(`/groups/${group.id}`);
-      })
-      .catch((err) => {
-        toast({
-          title: "Error",
-          description: err.message || "Failed to update group",
-          variant: "destructive",
-        });
+    try {
+      if (hasDraftInput && isValidPhone(draftNumber)) {
+        const draftType = String(pastMemberDraft.member_type || "").toLowerCase();
+        const exists = pastMembers.some(
+          (m) => m.member_type === draftType && normalizeDigits(m.number) === draftNumber
+        );
+        if (!exists) {
+          const created = await createGroupPastMember({
+            group_id: group.id,
+            member_type: draftType,
+            name: String(pastMemberDraft.name || "").trim() || null,
+            number: draftNumber,
+            source: "manual"
+          });
+          setPastMembers((prev) => [...prev, created]);
+        }
+        setPastMemberDraft((prev) => ({ ...prev, name: "", number: "" }));
+      }
+
+      await updateGroupApi(group.id, groupPayload);
+      toast({
+        title: "Group updated",
+        description: `${groupName} has been updated successfully.`,
       });
+      setLocation(`/groups/${group.id}`);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update group",
+        variant: "destructive",
+      });
+    }
   }
 
   if (loading) {
@@ -431,16 +617,24 @@ export default function EditGroupPage() {
                     <div className="text-sm font-semibold" data-testid="text-admin-phones-title">
                       Admin Phone Number
                     </div>
-                    <div className="mt-3 space-y-2" data-testid="list-admin-phones">
+                    <div className="mt-3 space-y-3" data-testid="list-admin-phones">
                       {adminPhones.map((p, idx) => (
                         <div key={idx} className="flex items-center gap-2" data-testid={`row-admin-phone-${idx}`}>
                           <Input
+                            value={p.name}
+                            onChange={(e) => updatePhone("admin", idx, "name", e.target.value)}
+                            placeholder="Name (optional)"
+                            className="soft-ring h-11 flex-1"
+                            data-testid={`input-admin-phone-name-${idx}`}
+                          />
+                          <Input
                             inputMode="tel"
-                            value={p}
+                            value={p.number}
                             maxLength={PHONE_MAX_LENGTH}
-                            onChange={(e) => updatePhone("admin", idx, e.target.value)}
-                            placeholder="Phone"
-                            className="soft-ring h-11"
+                            onChange={(e) => updatePhone("admin", idx, "number", e.target.value)}
+                            placeholder="10 to 12 digits"
+                            pattern="[0-9]*"
+                            className="soft-ring h-11 flex-1"
                             data-testid={`input-admin-phone-${idx}`}
                           />
                           <Button
@@ -448,6 +642,7 @@ export default function EditGroupPage() {
                             variant="secondary"
                             size="icon"
                             onClick={() => removePhone("admin", idx)}
+                            className="h-11 w-11 shrink-0 rounded-xl bg-[#e7e3f1] text-[#5a2ca0] hover:bg-[#ddd7ec]"
                             data-testid={`button-remove-admin-phone-${idx}`}
                           >
                             <span className="sr-only">Remove</span>
@@ -459,7 +654,7 @@ export default function EditGroupPage() {
                     <Button
                       type="button"
                       variant="secondary"
-                      className="mt-3 w-full"
+                      className="mt-3 h-11 w-full bg-[#d9d3e8] text-[#3f178f] hover:bg-[#cfc8e0]"
                       onClick={() => addPhone("admin")}
                       data-testid="button-add-admin-phone"
                     >
@@ -471,16 +666,24 @@ export default function EditGroupPage() {
                     <div className="text-sm font-semibold" data-testid="text-employee-phones-title">
                       Employee Phone Number
                     </div>
-                    <div className="mt-3 space-y-2" data-testid="list-employee-phones">
+                    <div className="mt-3 space-y-3" data-testid="list-employee-phones">
                       {employeePhones.map((p, idx) => (
                         <div key={idx} className="flex items-center gap-2" data-testid={`row-employee-phone-${idx}`}>
                           <Input
+                            value={p.name}
+                            onChange={(e) => updatePhone("employee", idx, "name", e.target.value)}
+                            placeholder="Name (optional)"
+                            className="soft-ring h-11 flex-1"
+                            data-testid={`input-employee-phone-name-${idx}`}
+                          />
+                          <Input
                             inputMode="tel"
-                            value={p}
+                            value={p.number}
                             maxLength={PHONE_MAX_LENGTH}
-                            onChange={(e) => updatePhone("employee", idx, e.target.value)}
-                            placeholder="Phone"
-                            className="soft-ring h-11"
+                            onChange={(e) => updatePhone("employee", idx, "number", e.target.value)}
+                            placeholder="10 to 12 digits"
+                            pattern="[0-9]*"
+                            className="soft-ring h-11 flex-1"
                             data-testid={`input-employee-phone-${idx}`}
                           />
                           <Button
@@ -488,6 +691,7 @@ export default function EditGroupPage() {
                             variant="secondary"
                             size="icon"
                             onClick={() => removePhone("employee", idx)}
+                            className="h-11 w-11 shrink-0 rounded-xl bg-[#e7e3f1] text-[#5a2ca0] hover:bg-[#ddd7ec]"
                             data-testid={`button-remove-employee-phone-${idx}`}
                           >
                             <span className="sr-only">Remove</span>
@@ -499,13 +703,139 @@ export default function EditGroupPage() {
                     <Button
                       type="button"
                       variant="secondary"
-                      className="mt-3 w-full"
+                      className="mt-3 h-11 w-full bg-[#d9d3e8] text-[#3f178f] hover:bg-[#cfc8e0]"
                       onClick={() => addPhone("employee")}
                       data-testid="button-add-employee-phone"
                     >
                       Add employee phone
                     </Button>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4" data-testid="section-past-members">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold" data-testid="text-past-members-title">
+                      Past Members
+                    </div>
+                    <Badge variant="secondary" data-testid="badge-past-member-count">
+                      {pastMembers.length}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <Select
+                      value={pastMemberDraft.member_type}
+                      onValueChange={(v) => setPastMemberDraft((prev) => ({ ...prev, member_type: v }))}
+                    >
+                      <SelectTrigger className="soft-ring h-11" data-testid="select-past-member-type">
+                        <SelectValue placeholder="Member type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin" data-testid="option-past-member-type-admin">
+                          Admin
+                        </SelectItem>
+                        <SelectItem value="employee" data-testid="option-past-member-type-employee">
+                          Employee
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={pastMemberDraft.name}
+                      onChange={(e) => setPastMemberDraft((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Name (optional)"
+                      className="soft-ring h-11"
+                      data-testid="input-past-member-name"
+                    />
+                    <Input
+                      inputMode="tel"
+                      value={pastMemberDraft.number}
+                      onChange={(e) =>
+                        setPastMemberDraft((prev) => ({
+                          ...prev,
+                          number: normalizeDigits(e.target.value).slice(0, PHONE_MAX_LENGTH)
+                        }))
+                      }
+                      placeholder="10 to 12 digits"
+                      pattern="[0-9]*"
+                      className="soft-ring h-11"
+                      data-testid="input-past-member-number"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-11"
+                      onClick={addPastMemberManually}
+                      disabled={!isValidPhone(pastMemberDraft.number)}
+                      data-testid="button-add-past-member"
+                    >
+                      <Plus className="h-4 w-4" /> Add past member
+                    </Button>
+                  </div>
+
+                  {pastMembers.length ? (
+                    <div className="mt-3 space-y-2" data-testid="list-past-members">
+                      {pastMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          className="rounded-xl border bg-muted/20 px-3 py-2"
+                          data-testid={`row-past-member-${member.id}`}
+                        >
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+                            <Select
+                              value={member.member_type}
+                              onValueChange={(v) => updatePastMemberLocal(member.id, "member_type", v)}
+                            >
+                              <SelectTrigger className="soft-ring h-10" data-testid={`select-past-member-type-${member.id}`}>
+                                <SelectValue placeholder="Type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="employee">Employee</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              value={member.name || ""}
+                              onChange={(e) => updatePastMemberLocal(member.id, "name", e.target.value)}
+                              placeholder="Name (optional)"
+                              className="soft-ring h-10"
+                              data-testid={`input-past-member-name-${member.id}`}
+                            />
+                            <Input
+                              inputMode="tel"
+                              value={member.number || ""}
+                              onChange={(e) => updatePastMemberLocal(member.id, "number", e.target.value)}
+                              placeholder="10 to 12 digits"
+                              className="soft-ring h-10"
+                              data-testid={`input-past-member-number-${member.id}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="h-10"
+                              onClick={() => savePastMember(member)}
+                              disabled={!isValidPhone(member.number || "")}
+                              data-testid={`button-update-past-member-${member.id}`}
+                            >
+                              Update
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="h-10"
+                              onClick={() => removePastMember(member.id)}
+                              data-testid={`button-delete-past-member-${member.id}`}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-muted-foreground" data-testid="text-past-members-empty">
+                      Remove a phone to auto-add it as past member, or add manually.
+                    </div>
+                  )}
                 </div>
 
                 <Button type="submit" className="h-11 w-full" disabled={!canSave} data-testid="button-save-group">

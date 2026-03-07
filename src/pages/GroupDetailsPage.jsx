@@ -23,6 +23,15 @@ function Chip({ value, testId }) {
   );
 }
 
+function ContactRow({ name, number, testId }) {
+  return (
+    <div className="rounded-xl border bg-white px-3 py-2 text-xs" data-testid={testId}>
+      <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{name || "-"}</span></div>
+      <div className="mt-1"><span className="text-muted-foreground">Number:</span> <span className="font-medium">{number || "-"}</span></div>
+    </div>
+  );
+}
+
 export default function GroupDetailsPage() {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/groups/:id");
@@ -173,20 +182,61 @@ export default function GroupDetailsPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border bg-white p-4" data-testid="section-group-admin-phones">
                     <div className="text-sm font-semibold" data-testid="text-group-admin-phones-title">Admin phones</div>
-                    <div className="mt-3 flex flex-wrap gap-2" data-testid="list-group-admin-phones">
-                      {(group.adminNumbers?.length ? group.adminNumbers.map(n => n.number) : ["-"]).map((p, idx) => (
-                        <Chip key={idx} value={p} testId={`chip-group-admin-phone-${idx}`} />
+                    <div className="mt-3 grid grid-cols-1 gap-2" data-testid="list-group-admin-phones">
+                      {(group.adminNumbers?.length ? group.adminNumbers : [{ name: "", number: "-" }]).map((p, idx) => (
+                        <ContactRow
+                          key={idx}
+                          name={p.name}
+                          number={p.number}
+                          testId={`row-group-admin-phone-${idx}`}
+                        />
                       ))}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border bg-white p-4" data-testid="section-group-employee-phones">
                     <div className="text-sm font-semibold" data-testid="text-group-employee-phones-title">Employee phones</div>
-                    <div className="mt-3 flex flex-wrap gap-2" data-testid="list-group-employee-phones">
-                      {(group.employeeNumbers?.length ? group.employeeNumbers.map(n => n.number) : ["-"]).map((p, idx) => (
-                        <Chip key={idx} value={p} testId={`chip-group-employee-phone-${idx}`} />
+                    <div className="mt-3 grid grid-cols-1 gap-2" data-testid="list-group-employee-phones">
+                      {(group.employeeNumbers?.length ? group.employeeNumbers : [{ name: "", number: "-" }]).map((p, idx) => (
+                        <ContactRow
+                          key={idx}
+                          name={p.name}
+                          number={p.number}
+                          testId={`row-group-employee-phone-${idx}`}
+                        />
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4" data-testid="section-group-past-members">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold" data-testid="text-group-past-members-title">Past members</div>
+                    <Badge variant="secondary" data-testid="badge-group-past-members-count">
+                      {group.pastMembers?.length || 0}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2" data-testid="list-group-past-members">
+                    {(group.pastMembers?.length
+                      ? group.pastMembers.map((m) => ({
+                          memberType: m.member_type,
+                          name: m.name || "",
+                          number: m.number || "-",
+                          source: m.source || "manual"
+                        }))
+                      : [{ memberType: "-", name: "-", number: "-", source: "-" }]
+                    ).map((m, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border bg-white px-3 py-2 text-xs"
+                        data-testid={`row-group-past-member-${idx}`}
+                      >
+                        <div><span className="text-muted-foreground">Type:</span> <span className="font-medium capitalize">{m.memberType}</span></div>
+                        <div className="mt-1"><span className="text-muted-foreground">Name:</span> <span className="font-medium">{m.name || "-"}</span></div>
+                        <div className="mt-1"><span className="text-muted-foreground">Number:</span> <span className="font-medium">{m.number || "-"}</span></div>
+                        <div className="mt-1"><span className="text-muted-foreground">Source:</span> <span className="font-medium">{m.source}</span></div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

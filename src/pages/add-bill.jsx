@@ -207,9 +207,9 @@ export default function AddBillPage() {
   )
 
   function toBillRowFromApi(row) {
-    const amountNum = Number(row.amount || 0)
-    const rateNum = Number(row.rate || 0)
-    const totalNum = Number(row.total ?? amountNum * rateNum)
+    const amountNum = Math.abs(Number(row.amount || 0))
+    const rateNum = Math.abs(Number(row.rate || 0))
+    const totalNum = Math.abs(Number(row.total ?? amountNum * rateNum))
     const source =
       String(row.source || "").trim() ||
       (String(row.group_type || "").toLowerCase() === "depo" ? "Depo" : "Claim")
@@ -960,13 +960,13 @@ export default function AddBillPage() {
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                           <div className="flex items-center justify-between rounded-lg border border-dashed p-4">
-                             <div className="text-sm text-muted-foreground">
-                               Need a template? Download a sample CSV file to get started.
-                             </div>
-                             <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="gap-2">
-                               <Download className="h-4 w-4" />
-                               Download Template
-                             </Button>
+                            <div className="text-sm text-muted-foreground">
+                              Need a template? Download a sample CSV file to get started.
+                            </div>
+                            <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="gap-2">
+                              <Download className="h-4 w-4" />
+                              Download Template
+                            </Button>
                           </div>
                           <div className="grid w-full max-w-sm items-center gap-1.5">
                             <Label htmlFor="bulk-file">Bill Data (CSV/XLS/XLSX)</Label>
@@ -1263,7 +1263,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Amount</Label>
-                      <Input inputMode="decimal" type="number" value={clientOtherAmount} onChange={(e) => setClientOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
+                      <Input inputMode="decimal" type="number" value={clientOtherAmount} onChange={(e) => setClientOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
@@ -1310,7 +1310,7 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Amount</Label>
-                      <Input inputMode="decimal" type="number" value={agentOtherAmount} onChange={(e) => setAgentOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
+                      <Input inputMode="decimal" type="number" value={agentOtherAmount} onChange={(e) => setAgentOtherAmount(e.target.value)} placeholder="0.00" className="soft-ring mt-1 h-11" onKeyDown={(e) => { if (e.key === 'e' || e.key === 'E') e.preventDefault(); }} />
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
@@ -1459,7 +1459,7 @@ export default function AddBillPage() {
                             {r.rate}
                           </div>
                           <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-total-${r.id}`}>
-                            {r.total}
+                            {isAgentBillTab ? `-${r.total}` : r.total}
                           </div>
                           {!isAgentBillTab ? (
                             <div className="flex items-center justify-center gap-2" data-testid={`cell-actions-${r.id}`}>
@@ -1508,4 +1508,3 @@ export default function AddBillPage() {
     </AppSidebar>
   )
 }
- 

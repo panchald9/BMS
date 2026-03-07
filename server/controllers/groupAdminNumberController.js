@@ -33,7 +33,7 @@ exports.getGroupAdminNumberById = async (req, res) => {
 
 exports.createGroupAdminNumber = async (req, res) => {
   try {
-    const { group_id, number } = req.body || {};
+    const { group_id, number, name } = req.body || {};
     if (!group_id || !number) {
       return res.status(400).json({ message: 'group_id and number are required' });
     }
@@ -41,8 +41,13 @@ exports.createGroupAdminNumber = async (req, res) => {
     if (!isValidPhone(normalizedNumber)) {
       return res.status(400).json({ message: `number must be digits only and ${PHONE_MIN_LENGTH}-${PHONE_MAX_LENGTH} digits` });
     }
+    const normalizedName = String(name || '').trim();
 
-    const row = await groupAdminNumberModel.createGroupAdminNumber({ group_id, number: normalizedNumber });
+    const row = await groupAdminNumberModel.createGroupAdminNumber({
+      group_id,
+      number: normalizedNumber,
+      name: normalizedName || null
+    });
     return res.status(201).json(row);
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -51,7 +56,7 @@ exports.createGroupAdminNumber = async (req, res) => {
 
 exports.updateGroupAdminNumber = async (req, res) => {
   try {
-    const { group_id, number } = req.body || {};
+    const { group_id, number, name } = req.body || {};
     if (!group_id || !number) {
       return res.status(400).json({ message: 'group_id and number are required' });
     }
@@ -59,8 +64,13 @@ exports.updateGroupAdminNumber = async (req, res) => {
     if (!isValidPhone(normalizedNumber)) {
       return res.status(400).json({ message: `number must be digits only and ${PHONE_MIN_LENGTH}-${PHONE_MAX_LENGTH} digits` });
     }
+    const normalizedName = String(name || '').trim();
 
-    const row = await groupAdminNumberModel.updateGroupAdminNumber(req.params.id, { group_id, number: normalizedNumber });
+    const row = await groupAdminNumberModel.updateGroupAdminNumber(req.params.id, {
+      group_id,
+      number: normalizedNumber,
+      name: normalizedName || null
+    });
     if (!row) {
       return res.status(404).json({ message: 'Group admin number not found' });
     }

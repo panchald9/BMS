@@ -65,6 +65,11 @@ const initDb = async () => {
   `);
 
   await pool.query(`
+    ALTER TABLE group_admin_numbers
+    ADD COLUMN IF NOT EXISTS name TEXT;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS group_employee_numbers (
       id SERIAL PRIMARY KEY,
       group_id INTEGER NOT NULL,
@@ -74,6 +79,66 @@ const initDb = async () => {
         REFERENCES groups(id)
         ON DELETE CASCADE
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE group_employee_numbers
+    ADD COLUMN IF NOT EXISTS name TEXT;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS group_past_members (
+      id SERIAL PRIMARY KEY,
+      group_id INTEGER NOT NULL,
+      member_type VARCHAR(20) NOT NULL,
+      number VARCHAR(20) NOT NULL,
+      name TEXT,
+      source VARCHAR(20) NOT NULL DEFAULT 'manual',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_group_past_member_group
+        FOREIGN KEY (group_id)
+        REFERENCES groups(id)
+        ON DELETE CASCADE,
+      CONSTRAINT chk_group_past_member_type
+        CHECK (LOWER(member_type) IN ('admin', 'employee')),
+      CONSTRAINT chk_group_past_member_source
+        CHECK (LOWER(source) IN ('manual', 'removed'))
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_group_past_members_group_id
+    ON group_past_members(group_id);
+  `);
+
+  await pool.query(`
+    CREATE OR REPLACE VIEW group_member_numbers_view AS
+    SELECT
+      gan.group_id,
+      'admin'::text AS member_type,
+      gan.name,
+      gan.number,
+      FALSE AS is_past_member,
+      'active'::text AS source
+    FROM group_admin_numbers gan
+    UNION ALL
+    SELECT
+      gen.group_id,
+      'employee'::text AS member_type,
+      gen.name,
+      gen.number,
+      FALSE AS is_past_member,
+      'active'::text AS source
+    FROM group_employee_numbers gen
+    UNION ALL
+    SELECT
+      gpm.group_id,
+      LOWER(gpm.member_type) AS member_type,
+      gpm.name,
+      gpm.number,
+      TRUE AS is_past_member,
+      LOWER(gpm.source) AS source
+    FROM group_past_members gpm;
   `);
 
   await pool.query(`
@@ -216,4 +281,3 @@ const initDb = async () => {
 };
 
 module.exports = initDb;
-

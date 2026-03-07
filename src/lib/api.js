@@ -105,6 +105,35 @@ export function createGroupEmployeeNumber(payload) {
   });
 }
 
+export function getGroupPastMembers(groupId) {
+  const params = new URLSearchParams();
+  if (groupId !== undefined && groupId !== null && String(groupId).trim() !== "") {
+    params.set("group_id", String(groupId));
+  }
+  const query = params.toString();
+  return request(`/group-past-members${query ? `?${query}` : ""}`);
+}
+
+export function createGroupPastMember(payload) {
+  return request("/group-past-members", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateGroupPastMember(id, payload) {
+  return request(`/group-past-members/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteGroupPastMember(id) {
+  return request(`/group-past-members/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export function getGroups() {
   return request("/groups");
 }

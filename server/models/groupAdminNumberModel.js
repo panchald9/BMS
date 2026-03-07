@@ -10,23 +10,23 @@ const getGroupAdminNumberById = async (id) => {
   return result.rows[0] || null;
 };
 
-const createGroupAdminNumber = async ({ group_id, number }) => {
+const createGroupAdminNumber = async ({ group_id, number, name }) => {
   const result = await pool.query(
-    `INSERT INTO group_admin_numbers (group_id, number)
-     VALUES ($1, $2)
+    `INSERT INTO group_admin_numbers (group_id, number, name)
+     VALUES ($1, $2, $3)
      RETURNING *`,
-    [group_id, number]
+    [group_id, number, name || null]
   );
   return result.rows[0];
 };
 
-const updateGroupAdminNumber = async (id, { group_id, number }) => {
+const updateGroupAdminNumber = async (id, { group_id, number, name }) => {
   const result = await pool.query(
     `UPDATE group_admin_numbers
-     SET group_id = $1, number = $2
-     WHERE id = $3
+     SET group_id = $1, number = $2, name = $3
+     WHERE id = $4
      RETURNING *`,
-    [group_id, number, id]
+    [group_id, number, name || null, id]
   );
   return result.rows[0] || null;
 };

@@ -38,7 +38,7 @@ const getGroupFullData = async (id) => {
   const group = await pool.query('SELECT * FROM groups WHERE id = $1', [id]);
   if (!group.rows[0]) return null;
 
-  const [bankRates, adminNumbers, employeeNumbers] = await Promise.all([
+  const [bankRates, adminNumbers, employeeNumbers, pastMembers] = await Promise.all([
     pool.query(
       `SELECT gbr.*, b.bank_name 
        FROM group_bank_rate gbr 
@@ -47,14 +47,22 @@ const getGroupFullData = async (id) => {
       [id]
     ),
     pool.query('SELECT * FROM group_admin_numbers WHERE group_id = $1', [id]),
-    pool.query('SELECT * FROM group_employee_numbers WHERE group_id = $1', [id])
+    pool.query('SELECT * FROM group_employee_numbers WHERE group_id = $1', [id]),
+    pool.query(
+      `SELECT *
+       FROM group_past_members
+       WHERE group_id = $1
+       ORDER BY id ASC`,
+      [id]
+    )
   ]);
 
   return {
     ...group.rows[0],
     bankRates: bankRates.rows,
     adminNumbers: adminNumbers.rows,
-    employeeNumbers: employeeNumbers.rows
+    employeeNumbers: employeeNumbers.rows,
+    pastMembers: pastMembers.rows
   };
 };
 
@@ -140,13 +148,14 @@ const findGroupsByContactNumber = async (number) => {
             u.name AS owner_name,
             g.same_rate,
             m.matched_number,
+            m.matched_name,
             m.matched_from
      FROM (
-       SELECT group_id, number AS matched_number, 'admin'::text AS matched_from
+       SELECT group_id, number AS matched_number, name AS matched_name, 'admin'::text AS matched_from
        FROM group_admin_numbers
        WHERE number ILIKE $1
        UNION ALL
-       SELECT group_id, number AS matched_number, 'employee'::text AS matched_from
+       SELECT group_id, number AS matched_number, name AS matched_name, 'employee'::text AS matched_from
        FROM group_employee_numbers
        WHERE number ILIKE $1
      ) m
@@ -180,7 +189,8 @@ const findGroupsByContactNumber = async (number) => {
 
     groupsById.get(groupId).matches.push({
       source: row.matched_from,
-      number: row.matched_number
+      number: row.matched_number,
+      name: row.matched_name || ''
     });
   }
 
@@ -195,14 +205,14 @@ const findGroupsByContactNumber = async (number) => {
       [groupIds]
     ),
     pool.query(
-      `SELECT group_id, number
+      `SELECT group_id, number, name
        FROM group_admin_numbers
        WHERE group_id = ANY($1::int[])
        ORDER BY group_id ASC, number ASC`,
       [groupIds]
     ),
     pool.query(
-      `SELECT group_id, number
+      `SELECT group_id, number, name
        FROM group_employee_numbers
        WHERE group_id = ANY($1::int[])
        ORDER BY group_id ASC, number ASC`,
@@ -223,13 +233,19 @@ const findGroupsByContactNumber = async (number) => {
   for (const row of adminNumbersResult.rows) {
     const group = groupsById.get(String(row.group_id));
     if (!group) continue;
-    group.adminNumbers.push(row.number);
+    group.adminNumbers.push({
+      number: row.number,
+      name: row.name || ''
+    });
   }
 
   for (const row of employeeNumbersResult.rows) {
     const group = groupsById.get(String(row.group_id));
     if (!group) continue;
-    group.employeeNumbers.push(row.number);
+    group.employeeNumbers.push({
+      number: row.number,
+      name: row.name || ''
+    });
   }
 
   return Array.from(groupsById.values());

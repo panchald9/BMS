@@ -134,7 +134,7 @@ export default function FindeContactPage() {
                           <div className="mt-1 flex flex-wrap gap-2">
                             {(group.matches || []).map((m, idx) => (
                               <Badge key={`${m.number}-${idx}`} variant="secondary">
-                                {m.number} ({m.source})
+                                {m.name ? `${m.name} - ` : ""}{m.number} ({m.source})
                               </Badge>
                             ))}
                           </div>
