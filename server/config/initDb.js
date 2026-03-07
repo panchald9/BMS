@@ -7,6 +7,11 @@ const initDb = async () => {
   `);
 
   await pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR(20);
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS banks (
       id SERIAL PRIMARY KEY,
       bank_name VARCHAR(100) NOT NULL UNIQUE,

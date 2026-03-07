@@ -59,15 +59,19 @@ function normalizeRate(value) {
 
 exports.registerUser = async (req, res) => {
   try {
-    const { name, password, phone, worktype, role, rate, email } = req.body || {};
+    const { name, password, phone, alternate_phone, worktype, role, rate, email } = req.body || {};
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'name, email and password are required' });
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
     const normalizedPhone = phone === undefined || phone === null ? '' : String(phone).trim();
+    const normalizedAlternatePhone = alternate_phone === undefined || alternate_phone === null ? '' : String(alternate_phone).trim();
     if (normalizedPhone.length > PHONE_MAX_LENGTH) {
       return res.status(400).json({ message: `phone must be at most ${PHONE_MAX_LENGTH} characters` });
+    }
+    if (normalizedAlternatePhone.length > PHONE_MAX_LENGTH) {
+      return res.status(400).json({ message: `alternate_phone must be at most ${PHONE_MAX_LENGTH} characters` });
     }
 
     const existingByName = await userModel.findUserByName(name);
@@ -87,6 +91,7 @@ exports.registerUser = async (req, res) => {
       email: normalizedEmail,
       password: hashedPassword,
       phone: normalizedPhone,
+      alternate_phone: normalizedAlternatePhone,
       worktype: normalizeWorktype(worktype),
       role,
       rate: normalizeRate(rate)
@@ -129,6 +134,7 @@ exports.loginUser = async (req, res) => {
         id: user.id,
         name: user.name,
         phone: user.phone,
+        alternate_phone: user.alternate_phone,
         worktype: user.worktype,
         role: user.role,
         rate: user.rate
@@ -194,6 +200,13 @@ exports.updateUser = async (req, res) => {
         return res.status(400).json({ message: `phone must be at most ${PHONE_MAX_LENGTH} characters` });
       }
       updateFields.phone = normalizedPhone;
+    }
+    if (payload.alternate_phone !== undefined) {
+      const normalizedAlternatePhone = String(payload.alternate_phone).trim();
+      if (normalizedAlternatePhone.length > PHONE_MAX_LENGTH) {
+        return res.status(400).json({ message: `alternate_phone must be at most ${PHONE_MAX_LENGTH} characters` });
+      }
+      updateFields.alternate_phone = normalizedAlternatePhone;
     }
     if (payload.role !== undefined) updateFields.role = String(payload.role).trim();
     if (payload.worktype !== undefined) updateFields.worktype = normalizeWorktype(payload.worktype);

@@ -32,14 +32,14 @@ const normalizeRateForDb = async (rate) => {
 };
 
 const createUser = async (user) => {
-  const { name, password, phone, worktype, role, rate, email } = user;
+  const { name, password, phone, alternate_phone, worktype, role, rate, email } = user;
   const rateValue = await normalizeRateForDb(rate);
 
   const result = await pool.query(
-    `INSERT INTO users (name, password, phone, worktype, role, rate, email)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO users (name, password, phone, alternate_phone, worktype, role, rate, email)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [name, password, phone, worktype, role, rateValue, email]
+    [name, password, phone, alternate_phone || null, worktype, role, rateValue, email]
   );
   return result.rows[0];
 };
@@ -72,7 +72,7 @@ const updateUserLoginById = async (id, email, password) => {
 
 const getUsers = async () => {
   const result = await pool.query(
-    `SELECT id, name, phone, worktype, role, rate, email
+    `SELECT id, name, phone, alternate_phone, worktype, role, rate, email
      FROM users
      WHERE role <> 'admin'
      ORDER BY id ASC`
@@ -82,7 +82,7 @@ const getUsers = async () => {
 
 const getUserById = async (id) => {
   const result = await pool.query(
-    'SELECT id, name, phone, worktype, role, rate, email FROM users WHERE id = $1 LIMIT 1',
+    'SELECT id, name, phone, alternate_phone, worktype, role, rate, email FROM users WHERE id = $1 LIMIT 1',
     [id]
   );
   return result.rows[0] || null;
@@ -116,6 +116,10 @@ const updateUserById = async (id, fields) => {
     updates.push(`phone = $${values.length + 1}`);
     values.push(fields.phone);
   }
+  if (fields.alternate_phone !== undefined) {
+    updates.push(`alternate_phone = $${values.length + 1}`);
+    values.push(fields.alternate_phone);
+  }
   if (fields.worktype !== undefined) {
     updates.push(`worktype = $${values.length + 1}`);
     values.push(fields.worktype);
@@ -140,7 +144,7 @@ const updateUserById = async (id, fields) => {
     `UPDATE users
      SET ${updates.join(', ')}
      WHERE id = $${values.length}
-     RETURNING id, name, phone, worktype, role, rate, email`,
+     RETURNING id, name, phone, alternate_phone, worktype, role, rate, email`,
     values
   );
 
@@ -149,7 +153,7 @@ const updateUserById = async (id, fields) => {
 
 const deleteUserById = async (id) => {
   const result = await pool.query(
-    'DELETE FROM users WHERE id = $1 RETURNING id, name, phone, worktype, role, rate, email',
+    'DELETE FROM users WHERE id = $1 RETURNING id, name, phone, alternate_phone, worktype, role, rate, email',
     [id]
   );
   return result.rows[0] || null;

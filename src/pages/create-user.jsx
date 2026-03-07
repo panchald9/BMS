@@ -36,6 +36,7 @@ export default function CreateUserPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [alternatePhone, setAlternatePhone] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState("Client");
   const [agentWorkTypes, setAgentWorkTypes] = useState(["Claimer"]);
@@ -79,6 +80,7 @@ export default function CreateUserPage() {
         setName(data.name ?? "");
         setEmail(data.email ?? "");
         setPhone(String(data.phone ?? "").slice(0, PHONE_MAX_LENGTH));
+        setAlternatePhone(String(data.alternate_phone ?? "").slice(0, PHONE_MAX_LENGTH));
         setUserType(data.role ?? "Client");
 
         const types = parseWorkTypes(data.worktype);
@@ -131,6 +133,7 @@ export default function CreateUserPage() {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim().slice(0, PHONE_MAX_LENGTH),
+      alternate_phone: alternatePhone.trim().slice(0, PHONE_MAX_LENGTH),
       password,
       role: userType,
       worktype: userType === "Agent" ? agentWorkTypes.join(",") : "",
@@ -168,6 +171,7 @@ export default function CreateUserPage() {
           name: data.name ?? payload.name,
           email: data.email ?? payload.email,
           phone: data.phone ?? payload.phone,
+          alternatePhone: data.alternate_phone ?? payload.alternate_phone,
           userType: data.role ?? payload.role,
           workTypes: typeof data.worktype === "string" && data.worktype.trim()
             ? data.worktype.split(",").map((w) => w.trim()).filter(Boolean)
@@ -275,6 +279,33 @@ export default function CreateUserPage() {
                     className="mt-1.5 h-11"
                     data-testid="input-user-phone"
                   />                </div>
+
+                <div className="md:col-span-2">
+                  <Label className="text-sm" htmlFor="user-alt-phone" data-testid="label-user-alt-phone">
+                    Alternate Phone (Optional)
+                  </Label>
+                  <Input
+                    id="user-alt-phone"
+                    inputMode="tel"
+                    value={alternatePhone}
+                    type="tel"
+                    maxLength={PHONE_MAX_LENGTH}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const filteredValue = value.replace(/[^0-9+\s]/g, '');
+                      setAlternatePhone(filteredValue.slice(0, PHONE_MAX_LENGTH));
+                    }}
+                    onKeyDown={(e) => {
+                      if ([8, 9, 27, 13, 46, 37, 38, 39, 40].includes(e.keyCode)) return;
+                      if (e.key === '+' && alternatePhone.length === 0) return;
+                      if ((e.key >= '0' && e.key <= '9') || e.key === ' ') return;
+                      e.preventDefault();
+                    }}
+                    placeholder="e.g., +92 300 1234567"
+                    className="mt-1.5 h-11"
+                    data-testid="input-user-alt-phone"
+                  />
+                </div>
 
                 <div className="md:col-span-2">
                   <Label className="text-sm" htmlFor="user-pass" data-testid="label-user-password">

@@ -197,7 +197,7 @@ const getClientAllBills = async (clientId) => {
             bk.bank_name,
             b.amount,
             b.rate,
-            (COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
+            ABS(COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
      FROM bill b
      JOIN groups g ON g.id = b.group_id
      LEFT JOIN users c ON c.id = b.client_id
@@ -215,7 +215,7 @@ const getClientAllBills = async (clientId) => {
             bk.bank_name,
             b.amount,
             b.rate,
-            (COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
+            ABS(COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
      FROM bill b
      JOIN groups g ON g.id = b.group_id
      LEFT JOIN users c ON c.id = b.client_id
@@ -231,7 +231,7 @@ const getClientAllBills = async (clientId) => {
             g.name AS group_name,
             c.name AS client_name,
             ob.amount,
-            (COALESCE(ob.amount, 0) * -1) AS total
+            ABS(COALESCE(ob.amount, 0)) AS total
      FROM other_bill ob
      LEFT JOIN groups g ON g.id = ob.group_id
      LEFT JOIN users c ON c.id = ob.client_id
@@ -259,7 +259,7 @@ const getClientAllBills = async (clientId) => {
             tx.amount,
             tx.dollar_rate,
             pc.processing_percent,
-            pc.processing_total AS total
+            ABS(pc.processing_total) AS total
      FROM processing_calculation pc
      LEFT JOIN tx ON tx.id = pc.id
      LEFT JOIN groups g ON g.id = pc.processing_group_id
@@ -288,7 +288,7 @@ const getClientAllBills = async (clientId) => {
             tx.amount,
             tx.dollar_rate,
             pgc.processing_percent,
-            pgc.processing_total AS total
+            ABS(pgc.processing_total) AS total
      FROM processing_group_calculation pgc
      LEFT JOIN tx ON tx.id = pgc.id
      LEFT JOIN groups g ON g.id = pgc.processing_group_id
@@ -320,7 +320,7 @@ const getAgentAllBills = async (agentId) => {
             bk.bank_name,
             ab.amount,
             ab.rate,
-            ab.total
+            ABS(ab.total) AS total
      FROM agent_bill ab
      JOIN groups g ON g.id = ab.group_id
      LEFT JOIN users c ON c.id = ab.client_id
@@ -335,7 +335,7 @@ const getAgentAllBills = async (agentId) => {
             ob.bill_date,
             ob.comment,
             ob.amount,
-            (COALESCE(ob.amount, 0) * -1) AS total
+            ABS(COALESCE(ob.amount, 0)) AS total
      FROM other_bill ob
      WHERE LOWER(COALESCE(ob.kind, '')) = 'agent'
        ${hasAgentFilter ? 'AND ob.agent_id = $1' : ''}
