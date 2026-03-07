@@ -74,8 +74,8 @@ async function upsertAgentBillForBill(client, billId) {
     return null;
   }
 
-  const amount = Math.abs(toNumber(row.amount));
-  const rate = Math.abs(resolveAgentRateBySource(source, row.agent_rates, row.user_rate));
+  const amount = toNumber(row.amount);
+  const rate = resolveAgentRateBySource(source, row.agent_rates, row.user_rate);
   const total = amount * rate;
 
   const result = await client.query(
@@ -165,9 +165,9 @@ const getAgentBills = async () => {
             ab.bank_id,
             ab.client_id,
             ab.agent_id,
-            ABS(COALESCE(ab.amount, 0)) AS amount,
-            ABS(COALESCE(ab.rate, 0)) AS rate,
-            ABS(COALESCE(ab.total, 0)) AS total,
+            ab.amount,
+            ab.rate,
+            ab.total,
             ab.source,
             ab.created_at,
             g.name AS group_name,
@@ -318,9 +318,9 @@ const getAgentAllBills = async (agentId) => {
             g.name AS group_name,
             c.name AS client_name,
             bk.bank_name,
-            ABS(COALESCE(ab.amount, 0)) AS amount,
-            ABS(COALESCE(ab.rate, 0)) AS rate,
-            ABS(COALESCE(ab.total, 0)) AS total
+            ab.amount,
+            ab.rate,
+            ab.total
      FROM agent_bill ab
      JOIN groups g ON g.id = ab.group_id
      LEFT JOIN users c ON c.id = ab.client_id
