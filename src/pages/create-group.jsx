@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layers, Plus, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
@@ -76,16 +76,17 @@ export default function CreateGroupPage() {
   const [sameRate, setSameRate] = useState("");
   const [perBankRates, setPerBankRates] = useState({});
 
-  const [adminPhones, setAdminPhones] = useState([emptyPhoneRow()]);
+  const [adminPhones, setAdminPhones] = useState([]);
   const [employeePhones, setEmployeePhones] = useState([emptyPhoneRow()]);
   const [pastMembers, setPastMembers] = useState([]);
   const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
-  const adminFirstRowEditedRef = useRef(false);
 
   const selectedClient = useMemo(
     () => clients.find((c) => String(c.id) === String(ownerClientId)) || null,
     [clients, ownerClientId]
   );
+  const ownerAdminName = String(selectedClient?.name || "").trim();
+  const ownerAdminPhone = cleanPhone(selectedClient?.phone || selectedClient?.alternate_phone || "");
 
   useEffect(() => {
     getClientUsers()
@@ -107,24 +108,6 @@ export default function CreateGroupPage() {
     }
   }, [rateMode, banks.length]);
 
-  useEffect(() => {
-    if (!selectedClient) return;
-    if (adminFirstRowEditedRef.current) return;
-    const clientName = String(selectedClient.name || "").trim();
-    const clientPhone = cleanPhone(selectedClient.phone || selectedClient.alternate_phone || "");
-    setAdminPhones((prev) => {
-      if (!prev.length) return [{ name: clientName, number: clientPhone }];
-      const next = prev.slice();
-      const first = next[0] || emptyPhoneRow();
-      next[0] = {
-        ...first,
-        name: clientName,
-        number: clientPhone
-      };
-      return next;
-    });
-  }, [selectedClient]);
-
   const canCreate = useMemo(() => {
     if (!groupName.trim()) return false;
     if (!ownerClientId) return false;
@@ -139,7 +122,7 @@ export default function CreateGroupPage() {
       }
     }
 
-    const anyAdminPhone = adminPhones.some((p) => isValidPhone(p.number));
+    const anyAdminPhone = isValidPhone(ownerAdminPhone) || adminPhones.some((p) => isValidPhone(p.number));
     const anyEmpPhone = employeePhones.some((p) => isValidPhone(p.number));
     if (!anyAdminPhone && !anyEmpPhone) return false;
 
@@ -154,12 +137,12 @@ export default function CreateGroupPage() {
     if (hasInvalidAdmin || hasInvalidEmployee) return false;
 
     return true;
-  }, [groupName, ownerClientId, groupType, rateMode, sameRate, perBankRates, banks, adminPhones, employeePhones]);
+  }, [groupName, ownerClientId, groupType, rateMode, sameRate, perBankRates, banks, ownerAdminPhone, adminPhones, employeePhones]);
 
   function addPhone(list) {
     if (list === "admin") {
       setAdminPhones((prev) => {
-        if (prev.length >= MAX_ADMIN_PHONES) return prev;
+        if (prev.length >= MAX_ADMIN_PHONES - 1) return prev;
         return [...prev, emptyPhoneRow()];
       });
       return;
@@ -177,7 +160,7 @@ export default function CreateGroupPage() {
         const removed = next[index];
         next.splice(index, 1);
         addPastMember(list, removed, "removed");
-        return next.length ? next : [emptyPhoneRow()];
+        return next;
       });
       return;
     }
@@ -193,9 +176,6 @@ export default function CreateGroupPage() {
 
   function updatePhone(list, index, field, value) {
     const nextValue = field === "number" ? cleanPhone(value) : String(value || "");
-    if (list === "admin" && index === 0) {
-      adminFirstRowEditedRef.current = true;
-    }
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();
@@ -271,7 +251,7 @@ export default function CreateGroupPage() {
       setAdminPhones((prev) => {
         const exists = prev.some((p) => cleanPhone(p.number) === entry.number);
         if (exists) return prev;
-        if (prev.length >= MAX_ADMIN_PHONES) return prev;
+        if (prev.length >= MAX_ADMIN_PHONES - 1) return prev;
         added = true;
         return [...prev, entry];
       });
@@ -348,6 +328,16 @@ export default function CreateGroupPage() {
           }
         }
 
+        if (isValidPhone(ownerAdminPhone)) {
+          promises.push(
+            createGroupAdminNumber({
+              group_id: groupId,
+              number: ownerAdminPhone,
+              name: ownerAdminName || null
+            })
+          );
+        }
+
         adminPhones.forEach((phone) => {
           const cleaned = cleanPhone(phone.number);
           if (isValidPhone(cleaned)) {
@@ -402,7 +392,7 @@ export default function CreateGroupPage() {
         setRateMode("same");
         setSameRate("");
         setPerBankRates({});
-        setAdminPhones([emptyPhoneRow()]);
+        setAdminPhones([]);
         setEmployeePhones([emptyPhoneRow()]);
         setPastMembers([]);
         setPastMemberDraft(emptyPastMemberDraft());
@@ -596,10 +586,38 @@ export default function CreateGroupPage() {
                         Admin Phone Number
                       </div>
                       <Badge variant="secondary" data-testid="badge-admin-phone-count">
-                        {adminPhones.length}/{MAX_ADMIN_PHONES}
+                        {1 + adminPhones.length}/{MAX_ADMIN_PHONES}
                       </Badge>
                     </div>
                     <div className="mt-3 space-y-3" data-testid="list-admin-phones">
+                      <div className="flex items-center gap-2" data-testid="row-admin-phone-owner">
+                        <Input
+                          value={ownerAdminName}
+                          placeholder="Owner name"
+                          className="soft-ring h-11 flex-1"
+                          data-testid="input-admin-phone-owner-name"
+                          disabled
+                        />
+                        <Input
+                          inputMode="tel"
+                          value={ownerAdminPhone}
+                          placeholder="Owner number"
+                          className="soft-ring h-11 flex-1"
+                          data-testid="input-admin-phone-owner-number"
+                          disabled
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="h-11 w-11 shrink-0 rounded-xl bg-[#e7e3f1] text-[#5a2ca0] hover:bg-[#ddd7ec]"
+                          data-testid="button-remove-admin-phone-owner"
+                          disabled
+                        >
+                          <span className="sr-only">Owner fixed</span>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                       {adminPhones.map((p, idx) => (
                         <div key={idx} className="flex items-center gap-2" data-testid={`row-admin-phone-${idx}`}>
                           <Input
@@ -645,14 +663,14 @@ export default function CreateGroupPage() {
                       variant="secondary"
                       className="mt-3 h-11 w-full bg-[#d9d3e8] text-[#3f178f] hover:bg-[#cfc8e0]"
                       onClick={() => addPhone("admin")}
-                      disabled={adminPhones.length >= MAX_ADMIN_PHONES}
+                      disabled={adminPhones.length >= MAX_ADMIN_PHONES - 1}
                       data-testid="button-add-admin-phone"
                     >
                       Add admin phone
                     </Button>
-                    {adminPhones.length >= MAX_ADMIN_PHONES ? (
+                    {adminPhones.length >= MAX_ADMIN_PHONES - 1 ? (
                       <div className="mt-2 text-xs text-muted-foreground">
-                        Maximum {MAX_ADMIN_PHONES} admin phone numbers allowed.
+                        Maximum {MAX_ADMIN_PHONES} admin phone numbers allowed (including owner).
                       </div>
                     ) : null}
                   </div>

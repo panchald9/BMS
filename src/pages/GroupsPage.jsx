@@ -14,6 +14,7 @@ export default function GroupsPage() {
   const { toast } = useToast()
 
   const [groups, setGroups] = useState([])
+  const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -24,6 +25,18 @@ export default function GroupsPage() {
   }, [])
 
   const canEditOrDelete = useMemo(() => groups.length > 0, [groups.length])
+  const visibleGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = !q
+      ? groups
+      : groups.filter((g) =>
+          [g.name, g.type, g.owner, g.owner_name, g.owner_phone]
+            .map((v) => String(v || "").toLowerCase())
+            .some((v) => v.includes(q))
+        )
+
+    return [...filtered].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }))
+  }, [groups, searchQuery])
 
   function handleDelete(id, name) {
     if (!confirm(`Delete group "${name}"?`)) return
@@ -89,6 +102,17 @@ export default function GroupsPage() {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search groups..."
+                  className="h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="input-search-groups"
+                />
+              </div>
+
               <Separator className="my-4" />
 
               <div className="space-y-2" data-testid="list-groups">
@@ -96,8 +120,8 @@ export default function GroupsPage() {
                   <div className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground" data-testid="loading-groups">
                     Loading groups...
                   </div>
-                ) : groups.length ? (
-                  groups.map((g) => (
+                ) : visibleGroups.length ? (
+                  visibleGroups.map((g) => (
                     <div
                       key={g.id}
                       className="group rounded-2xl border bg-white/70 p-4 transition hover:bg-white/90"
@@ -117,7 +141,9 @@ export default function GroupsPage() {
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span data-testid={`text-group-type-${g.id}`}>{g.type}</span>
                             <span className="text-muted-foreground/60">•</span>
-                            <span data-testid={`text-group-owner-${g.id}`}>Owner: {g.owner}</span>
+                            <span data-testid={`text-group-owner-${g.id}`}>Owner: {g.owner_name || g.owner}</span>
+                            <span className="text-muted-foreground/60">â€¢</span>
+                            <span data-testid={`text-group-owner-phone-${g.id}`}>{g.owner_phone || "-"}</span>
                           </div>
                         </div>
 
@@ -153,7 +179,9 @@ export default function GroupsPage() {
                   ))
                 ) : (
                   <div className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground" data-testid="empty-groups">
-                    No groups yet. Click "Create new group" to add one.
+                    {searchQuery.trim()
+                      ? "No groups match your search."
+                      : "No groups yet. Click \"Create new group\" to add one."}
                   </div>
                 )}
               </div>

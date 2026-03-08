@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { getAgentBills, getAgentUsers, getBills, getClientUsers, getOtherBills } from "../lib/api";
+import { getAgentBills, getAgentUsers, getBills, getClientUsers, getGroups, getOtherBills } from "../lib/api";
 import { formatDateDDMMYYYY, startOfMonthISO, todayISO } from "../lib/date";
 import { useToast } from "../hooks/use-toast";
 
@@ -68,18 +68,20 @@ export default function DashboardPage() {
   const [bills, setBills] = useState([]);
   const [clientOtherBills, setClientOtherBills] = useState([]);
   const [agentBills, setAgentBills] = useState([]);
+  const [groups, setGroups] = useState([]);
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       try {
-        const [clientRows, agentRows, billRows, clientOtherRows, agentBillRows] = await Promise.all([
+        const [clientRows, agentRows, billRows, clientOtherRows, agentBillRows, groupRows] = await Promise.all([
           getClientUsers(),
           getAgentUsers(),
           getBills(),
           getOtherBills("client"),
           getAgentBills(),
+          getGroups(),
         ]);
         if (!mounted) return;
         setClients(Array.isArray(clientRows) ? clientRows : []);
@@ -87,6 +89,7 @@ export default function DashboardPage() {
         setBills(Array.isArray(billRows) ? billRows : []);
         setClientOtherBills(Array.isArray(clientOtherRows) ? clientOtherRows : []);
         setAgentBills(Array.isArray(agentBillRows) ? agentBillRows : []);
+        setGroups(Array.isArray(groupRows) ? groupRows : []);
       } catch (error) {
         if (!mounted) return;
         toast({
@@ -103,6 +106,15 @@ export default function DashboardPage() {
   }, [toast]);
 
   const topClients = useMemo(() => {
+    const groupsByClientId = new Map();
+    for (const g of groups) {
+      const key = String(g.owner ?? "");
+      if (!key) continue;
+      if (!groupsByClientId.has(key)) groupsByClientId.set(key, []);
+      const name = String(g.name || "").trim();
+      if (name) groupsByClientId.get(key).push(name);
+    }
+
     const map = new Map(
       clients.map((c) => [
         String(c.id),
@@ -111,6 +123,7 @@ export default function DashboardPage() {
           name: c.name || "-",
           total: 0,
           lastDateISO: "",
+          groups: groupsByClientId.get(String(c.id)) || [],
         },
       ])
     );
@@ -143,7 +156,7 @@ export default function DashboardPage() {
       if (b.total !== a.total) return b.total - a.total;
       return (b.lastDateISO || "").localeCompare(a.lastDateISO || "");
     });
-  }, [bills, clientOtherBills, clients]);
+  }, [bills, clientOtherBills, clients, groups]);
 
   const stats = useMemo(() => {
     const monthStartISO = startOfMonthISO(todayISO());
@@ -243,6 +256,7 @@ export default function DashboardPage() {
                       <TableRow className="border-border/50 hover:bg-transparent">
                         <TableHead className="w-12 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-rank">#</TableHead>
                         <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-client">Client</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-groups">Groups</TableHead>
                         <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-last-date">Last Entry Date</TableHead>
                         <TableHead className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="th-total">Total</TableHead>
                       </TableRow>
@@ -264,6 +278,9 @@ export default function DashboardPage() {
                               <span className="font-medium text-foreground">{c.name}</span>
                             </div>
                           </TableCell>
+                          <TableCell className="text-sm text-muted-foreground" data-testid={`cell-groups-${c.id}`}>
+                            {c.groups.length ? c.groups.join(", ") : "-"}
+                          </TableCell>
                           <TableCell className="text-sm text-muted-foreground" data-testid={`cell-date-${c.id}`}>
                             {c.lastDateISO ? formatDateDDMMYYYY(c.lastDateISO) : "-"}
                           </TableCell>
@@ -274,7 +291,7 @@ export default function DashboardPage() {
                       ))}
                       {topClients.length === 0 ? (
                         <TableRow className="border-border/50">
-                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
                             No clients available
                           </TableCell>
                         </TableRow>

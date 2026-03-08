@@ -1,12 +1,23 @@
 const pool = require('../config/db');
 
 const getAllGroups = async () => {
-  const result = await pool.query('SELECT * FROM groups ORDER BY id ASC');
+  const result = await pool.query(
+    `SELECT g.*, u.name AS owner_name, COALESCE(u.phone, u.alternate_phone, '') AS owner_phone
+     FROM groups g
+     LEFT JOIN users u ON u.id = g.owner
+     ORDER BY g.id ASC`
+  );
   return result.rows;
 };
 
 const getGroupById = async (id) => {
-  const result = await pool.query('SELECT * FROM groups WHERE id = $1', [id]);
+  const result = await pool.query(
+    `SELECT g.*, u.name AS owner_name, COALESCE(u.phone, u.alternate_phone, '') AS owner_phone
+     FROM groups g
+     LEFT JOIN users u ON u.id = g.owner
+     WHERE g.id = $1`,
+    [id]
+  );
   return result.rows[0] || null;
 };
 

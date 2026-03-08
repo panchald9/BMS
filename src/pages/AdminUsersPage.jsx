@@ -31,10 +31,23 @@ export default function AdminUsersPage() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const [users, setUsers] = useState([])
+  const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState("")
 
   const canEditOrDelete = useMemo(() => users.length > 0, [users.length])
+  const visibleUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = !q
+      ? users
+      : users.filter((u) =>
+          [u.name, u.username, u.email, u.phone]
+            .map((v) => String(v || "").toLowerCase())
+            .some((v) => v.includes(q))
+        )
+
+    return [...filtered].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+  }, [users, searchQuery])
 
   async function fetchUsers() {
     const token = localStorage.getItem("authToken")
@@ -137,6 +150,17 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search users..."
+                  className="h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="input-search-users"
+                />
+              </div>
+
               <Separator className="my-4" />
 
               <div className="space-y-2" data-testid="list-users">
@@ -144,8 +168,8 @@ export default function AdminUsersPage() {
                   <div className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground">
                     Loading users...
                   </div>
-                ) : users.length ? (
-                  users.map((u) => (
+                ) : visibleUsers.length ? (
+                  visibleUsers.map((u) => (
                     <div
                       key={u.id}
                       className="group rounded-2xl border bg-white/70 p-4 transition hover:bg-white/90"
@@ -206,7 +230,9 @@ export default function AdminUsersPage() {
                     className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground"
                     data-testid="empty-users"
                   >
-                    No users yet. Click "Create new user" to add one.
+                    {searchQuery.trim()
+                      ? "No users match your search."
+                      : "No users yet. Click \"Create new user\" to add one."}
                   </div>
                 )}
               </div>
