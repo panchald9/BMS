@@ -139,7 +139,7 @@ function BillTable({ type, rows }) {
                   <th className="px-3 py-2 text-right">Amount ($)</th>
                   {isProcOrPay ? <th className="px-3 py-2 text-right">%</th> : null}
                   <th className="px-3 py-2 text-right">Dollar Rate</th>
-                  <th className="px-3 py-2 text-right">Total (\u20B9)</th>
+                  <th className="px-3 py-2 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
