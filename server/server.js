@@ -45,6 +45,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 const ensureDefaultAdmin = async () => {
   const adminName = process.env.DEFAULT_ADMIN_NAME || 'admin';
+  const adminUsername = process.env.DEFAULT_ADMIN_USERNAME || adminName;
   const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'Depo@2026';
   const adminEmail = (process.env.DEFAULT_ADMIN_EMAIL || 'admin@billing.com').toLowerCase();
   const existingByEmail = await userModel.findUserByEmail(adminEmail);
@@ -68,6 +69,7 @@ const ensureDefaultAdmin = async () => {
 
   await userModel.createUser({
     name: adminName,
+    username: adminUsername,
     email: adminEmail,
     password: hashedPassword,
     phone: process.env.DEFAULT_ADMIN_PHONE || '9067463790',

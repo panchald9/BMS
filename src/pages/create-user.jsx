@@ -34,6 +34,7 @@ export default function CreateUserPage() {
   const { toast } = useToast();
 
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [alternatePhone, setAlternatePhone] = useState("");
@@ -47,7 +48,7 @@ export default function CreateUserPage() {
   const [isLoadingUser, setIsLoadingUser] = useState(false);
 
   const canSubmit = useMemo(() => {
-    if (!name.trim() || !email.trim() || !phone.trim()) return false;
+    if (!name.trim() || !username.trim() || !email.trim() || !phone.trim()) return false;
     if (!isEditMode && !password.trim()) return false;
     if (userType === "Agent") {
       if (agentWorkTypes.length === 0) return false;
@@ -55,7 +56,7 @@ export default function CreateUserPage() {
       if (agentWorkTypes.includes("Depositer") && !String(rateDepositer).trim()) return false;
     }
     return true;
-  }, [name, email, phone, password, isEditMode, userType, agentWorkTypes, rateClaimer, rateDepositer]);
+  }, [name, username, email, phone, password, isEditMode, userType, agentWorkTypes, rateClaimer, rateDepositer]);
 
   useEffect(() => {
     if (!isEditMode || !editUserId) return;
@@ -78,6 +79,7 @@ export default function CreateUserPage() {
         if (!active || !data) return;
 
         setName(data.name ?? "");
+        setUsername(data.username ?? "");
         setEmail(data.email ?? "");
         setPhone(String(data.phone ?? "").slice(0, PHONE_MAX_LENGTH));
         setAlternatePhone(String(data.alternate_phone ?? "").slice(0, PHONE_MAX_LENGTH));
@@ -131,6 +133,7 @@ export default function CreateUserPage() {
 
     const payload = {
       name: name.trim(),
+      username: username.trim(),
       email: email.trim().toLowerCase(),
       phone: phone.trim().slice(0, PHONE_MAX_LENGTH),
       alternate_phone: alternatePhone.trim().slice(0, PHONE_MAX_LENGTH),
@@ -169,6 +172,7 @@ export default function CreateUserPage() {
         createUser({
           id: String(data.id ?? ""),
           name: data.name ?? payload.name,
+          username: data.username ?? payload.username,
           email: data.email ?? payload.email,
           phone: data.phone ?? payload.phone,
           alternatePhone: data.alternate_phone ?? payload.alternate_phone,
@@ -222,7 +226,7 @@ export default function CreateUserPage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <Label className="text-sm" htmlFor="name" data-testid="label-user-name">
-                    User Name
+                    Full Name
                   </Label>
                   <Input
                     id="name"
@@ -231,6 +235,20 @@ export default function CreateUserPage() {
                     placeholder="Full name"
                     className="mt-1.5 h-11"
                     data-testid="input-user-name"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label className="text-sm" htmlFor="username" data-testid="label-user-username">
+                    Username
+                  </Label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Unique username"
+                    className="mt-1.5 h-11"
+                    data-testid="input-user-username"
                   />
                 </div>
 

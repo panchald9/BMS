@@ -22,6 +22,8 @@ import {
   getBanks,
   updateGroup as updateGroupApi,
   createGroupBankRate,
+  updateGroupBankRate,
+  deleteGroupBankRate,
   createGroupAdminNumber,
   updateGroupAdminNumber,
   deleteGroupAdminNumber,
@@ -114,8 +116,9 @@ export default function EditGroupPage() {
           setGroupName(groupData.name ?? "");
           setGroupType(groupData.type);
           setOwnerClientId(String(groupData.owner));
-          setRateMode(groupData.same_rate ? "same" : "per-bank");
-          setSameRate(groupData.same_rate ? String(groupData.same_rate) : "");
+          const hasSameRate = groupData.same_rate !== null && groupData.same_rate !== undefined;
+          setRateMode(hasSameRate ? "same" : "per-bank");
+          setSameRate(hasSameRate ? String(groupData.same_rate) : "");
           
           const rates = {};
           (groupData.bankRates || []).forEach(br => {
@@ -417,6 +420,53 @@ export default function EditGroupPage() {
     if (requests.length) await Promise.all(requests);
   }
 
+  async function syncBankRates(groupIdValue) {
+    const existingRates = Array.isArray(group?.bankRates) ? group.bankRates : [];
+
+    if (!isClaimOrDepo(groupType) || rateMode === "same") {
+      if (!existingRates.length) return;
+      await Promise.all(existingRates.map((row) => deleteGroupBankRate(row.id)));
+      return;
+    }
+
+    const desiredEntries = banks
+      .map((bank) => {
+        const raw = (perBankRates[bank.id] ?? "").trim();
+        if (!raw) return null;
+        return { bankId: Number(bank.id), rate: Number(raw) };
+      })
+      .filter(Boolean);
+
+    const existingByBankId = new Map(
+      existingRates.map((row) => [Number(row.bank_id), row]).filter(([id]) => Number.isFinite(id))
+    );
+    const desiredBankIds = new Set(desiredEntries.map((entry) => entry.bankId));
+    const requests = [];
+
+    for (const entry of desiredEntries) {
+      const existing = existingByBankId.get(entry.bankId);
+      const payload = {
+        group_id: groupIdValue,
+        bank_id: entry.bankId,
+        rate: entry.rate,
+      };
+      if (existing?.id) {
+        requests.push(updateGroupBankRate(existing.id, payload));
+      } else {
+        requests.push(createGroupBankRate(payload));
+      }
+    }
+
+    for (const row of existingRates) {
+      const bankId = Number(row.bank_id);
+      if (!desiredBankIds.has(bankId)) {
+        requests.push(deleteGroupBankRate(row.id));
+      }
+    }
+
+    if (requests.length) await Promise.all(requests);
+  }
+
   async function onSave(e) {
     e.preventDefault();
     if (!group || !canSave) return;
@@ -437,7 +487,7 @@ export default function EditGroupPage() {
       name: groupName.trim(),
       type: groupType,
       owner: Number(ownerClientId),
-      ...(rateMode === "same" && isClaimOrDepo(groupType) ? { same_rate: Number(sameRate) } : {})
+      same_rate: isClaimOrDepo(groupType) && rateMode === "same" ? Number(sameRate) : null
     };
 
     try {
@@ -460,6 +510,7 @@ export default function EditGroupPage() {
       }
 
       await updateGroupApi(group.id, groupPayload);
+      await syncBankRates(group.id);
       await syncPhoneNumbers(group.id);
       toast({
         title: "Group updated",

@@ -32,14 +32,14 @@ const normalizeRateForDb = async (rate) => {
 };
 
 const createUser = async (user) => {
-  const { name, password, phone, alternate_phone, worktype, role, rate, email } = user;
+  const { name, username, password, phone, alternate_phone, worktype, role, rate, email } = user;
   const rateValue = await normalizeRateForDb(rate);
 
   const result = await pool.query(
-    `INSERT INTO users (name, password, phone, alternate_phone, worktype, role, rate, email)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO users (name, username, password, phone, alternate_phone, worktype, role, rate, email)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [name, password, phone, alternate_phone || null, worktype, role, rateValue, email]
+    [name, username, password, phone, alternate_phone || null, worktype, role, rateValue, email]
   );
   return result.rows[0];
 };
@@ -51,6 +51,14 @@ const findUserByName = async (name) => {
 
 const findUserByEmail = async (email) => {
   const result = await pool.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [email]);
+  return result.rows[0] || null;
+};
+
+const findUserByUsername = async (username) => {
+  const result = await pool.query(
+    'SELECT * FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+    [username]
+  );
   return result.rows[0] || null;
 };
 
@@ -72,7 +80,7 @@ const updateUserLoginById = async (id, email, password) => {
 
 const getUsers = async () => {
   const result = await pool.query(
-    `SELECT id, name, phone, alternate_phone, worktype, role, rate, email
+    `SELECT id, name, username, phone, alternate_phone, worktype, role, rate, email
      FROM users
      WHERE role <> 'admin'
      ORDER BY id ASC`
@@ -82,7 +90,7 @@ const getUsers = async () => {
 
 const getUserById = async (id) => {
   const result = await pool.query(
-    'SELECT id, name, phone, alternate_phone, worktype, role, rate, email FROM users WHERE id = $1 LIMIT 1',
+    'SELECT id, name, username, phone, alternate_phone, worktype, role, rate, email FROM users WHERE id = $1 LIMIT 1',
     [id]
   );
   return result.rows[0] || null;
@@ -92,6 +100,14 @@ const findUserByEmailExcludingId = async (email, id) => {
   const result = await pool.query(
     'SELECT id, name, email FROM users WHERE email = $1 AND id <> $2 LIMIT 1',
     [email, id]
+  );
+  return result.rows[0] || null;
+};
+
+const findUserByUsernameExcludingId = async (username, id) => {
+  const result = await pool.query(
+    'SELECT id, username FROM users WHERE LOWER(username) = LOWER($1) AND id <> $2 LIMIT 1',
+    [username, id]
   );
   return result.rows[0] || null;
 };
@@ -107,6 +123,10 @@ const updateUserById = async (id, fields) => {
   if (fields.email !== undefined) {
     updates.push(`email = $${values.length + 1}`);
     values.push(fields.email);
+  }
+  if (fields.username !== undefined) {
+    updates.push(`username = $${values.length + 1}`);
+    values.push(fields.username);
   }
   if (fields.password !== undefined) {
     updates.push(`password = $${values.length + 1}`);
@@ -144,7 +164,7 @@ const updateUserById = async (id, fields) => {
     `UPDATE users
      SET ${updates.join(', ')}
      WHERE id = $${values.length}
-     RETURNING id, name, phone, alternate_phone, worktype, role, rate, email`,
+     RETURNING id, name, username, phone, alternate_phone, worktype, role, rate, email`,
     values
   );
 
@@ -153,7 +173,7 @@ const updateUserById = async (id, fields) => {
 
 const deleteUserById = async (id) => {
   const result = await pool.query(
-    'DELETE FROM users WHERE id = $1 RETURNING id, name, phone, alternate_phone, worktype, role, rate, email',
+    'DELETE FROM users WHERE id = $1 RETURNING id, name, username, phone, alternate_phone, worktype, role, rate, email',
     [id]
   );
   return result.rows[0] || null;
@@ -185,7 +205,9 @@ module.exports = {
   createUser,
   findUserByName,
   findUserByEmail,
+  findUserByUsername,
   findUserByEmailExcludingId,
+  findUserByUsernameExcludingId,
   findAnyAdmin,
   updateUserLoginById,
   getUsers,

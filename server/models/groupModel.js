@@ -18,13 +18,13 @@ const createGroup = async ({ name, type, owner, same_rate }) => {
   return result.rows[0];
 };
 
-const updateGroup = async (id, { name, type, owner }) => {
+const updateGroup = async (id, { name, type, owner, same_rate }) => {
   const result = await pool.query(
     `UPDATE groups
-     SET name = $1, type = $2, owner = $3
-     WHERE id = $4
+     SET name = $1, type = $2, owner = $3, same_rate = $4
+     WHERE id = $5
      RETURNING *`,
-    [name, type || null, owner, id]
+    [name, type || null, owner, same_rate ?? null, id]
   );
   return result.rows[0] || null;
 };

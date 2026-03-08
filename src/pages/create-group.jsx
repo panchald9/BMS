@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layers, Plus, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
@@ -80,6 +80,7 @@ export default function CreateGroupPage() {
   const [employeePhones, setEmployeePhones] = useState([emptyPhoneRow()]);
   const [pastMembers, setPastMembers] = useState([]);
   const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
+  const adminFirstRowEditedRef = useRef(false);
 
   const selectedClient = useMemo(
     () => clients.find((c) => String(c.id) === String(ownerClientId)) || null,
@@ -108,18 +109,17 @@ export default function CreateGroupPage() {
 
   useEffect(() => {
     if (!selectedClient) return;
+    if (adminFirstRowEditedRef.current) return;
     const clientName = String(selectedClient.name || "").trim();
     const clientPhone = cleanPhone(selectedClient.phone || selectedClient.alternate_phone || "");
     setAdminPhones((prev) => {
       if (!prev.length) return [{ name: clientName, number: clientPhone }];
       const next = prev.slice();
       const first = next[0] || emptyPhoneRow();
-      const firstName = String(first.name || "").trim();
-      const firstNumber = cleanPhone(first.number || "");
       next[0] = {
         ...first,
-        name: firstName || clientName,
-        number: firstNumber || clientPhone
+        name: clientName,
+        number: clientPhone
       };
       return next;
     });
@@ -193,6 +193,9 @@ export default function CreateGroupPage() {
 
   function updatePhone(list, index, field, value) {
     const nextValue = field === "number" ? cleanPhone(value) : String(value || "");
+    if (list === "admin" && index === 0) {
+      adminFirstRowEditedRef.current = true;
+    }
     if (list === "admin") {
       setAdminPhones((prev) => {
         const next = prev.slice();

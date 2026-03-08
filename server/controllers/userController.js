@@ -59,11 +59,16 @@ function normalizeRate(value) {
 
 exports.registerUser = async (req, res) => {
   try {
-    const { name, password, phone, alternate_phone, worktype, role, rate, email } = req.body || {};
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'name, email and password are required' });
+    const { name, username, password, phone, alternate_phone, worktype, role, rate, email } = req.body || {};
+    if (!name || !username || !email || !password) {
+      return res.status(400).json({ message: 'name, username, email and password are required' });
     }
 
+    const normalizedName = String(name).trim();
+    const normalizedUsername = String(username).trim();
+    if (!normalizedName || !normalizedUsername) {
+      return res.status(400).json({ message: 'name and username cannot be empty' });
+    }
     const normalizedEmail = String(email).trim().toLowerCase();
     const normalizedPhone = phone === undefined || phone === null ? '' : String(phone).trim();
     const normalizedAlternatePhone = alternate_phone === undefined || alternate_phone === null ? '' : String(alternate_phone).trim();
@@ -74,7 +79,7 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: `alternate_phone must be at most ${PHONE_MAX_LENGTH} characters` });
     }
 
-    const existingByName = await userModel.findUserByName(name);
+    const existingByName = await userModel.findUserByName(normalizedName);
     if (existingByName) {
       return res.status(409).json({ message: 'User with this name already exists' });
     }
@@ -84,10 +89,16 @@ exports.registerUser = async (req, res) => {
       return res.status(409).json({ message: 'User with this email already exists' });
     }
 
+    const existingByUsername = await userModel.findUserByUsername(normalizedUsername);
+    if (existingByUsername) {
+      return res.status(409).json({ message: 'User with this username already exists' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await userModel.createUser({
-      name,
+      name: normalizedName,
+      username: normalizedUsername,
       email: normalizedEmail,
       password: hashedPassword,
       phone: normalizedPhone,
@@ -133,6 +144,7 @@ exports.loginUser = async (req, res) => {
       user: {
         id: user.id,
         name: user.name,
+        username: user.username,
         phone: user.phone,
         alternate_phone: user.alternate_phone,
         worktype: user.worktype,
@@ -194,6 +206,7 @@ exports.updateUser = async (req, res) => {
     const updateFields = {};
 
     if (payload.name !== undefined) updateFields.name = String(payload.name).trim();
+    if (payload.username !== undefined) updateFields.username = String(payload.username).trim();
     if (payload.phone !== undefined) {
       const normalizedPhone = String(payload.phone).trim();
       if (normalizedPhone.length > PHONE_MAX_LENGTH) {
@@ -219,6 +232,15 @@ exports.updateUser = async (req, res) => {
         return res.status(409).json({ message: 'User with this email already exists' });
       }
       updateFields.email = normalizedEmail;
+    }
+    if (payload.username !== undefined) {
+      if (!updateFields.username) {
+        return res.status(400).json({ message: 'username cannot be empty' });
+      }
+      const existingByUsername = await userModel.findUserByUsernameExcludingId(updateFields.username, id);
+      if (existingByUsername) {
+        return res.status(409).json({ message: 'User with this username already exists' });
+      }
     }
 
     if (payload.password !== undefined && String(payload.password).trim()) {

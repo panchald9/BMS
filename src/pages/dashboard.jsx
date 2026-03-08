@@ -248,7 +248,7 @@ export default function DashboardPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {topClients.slice(0, 5).map((c, idx) => (
+                      {topClients.map((c, idx) => (
                         <TableRow key={c.id} className="border-border/50" data-testid={`row-top-client-${c.id}`}>
                           <TableCell className="text-center font-medium text-muted-foreground" data-testid={`cell-rank-${c.id}`}>
                             {idx + 1}

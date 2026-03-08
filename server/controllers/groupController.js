@@ -37,12 +37,12 @@ exports.createGroup = async (req, res) => {
 
 exports.updateGroup = async (req, res) => {
   try {
-    const { name, type, owner } = req.body || {};
+    const { name, type, owner, same_rate } = req.body || {};
     if (!name || !owner) {
       return res.status(400).json({ message: 'name and owner are required' });
     }
 
-    const group = await groupModel.updateGroup(req.params.id, { name, type, owner });
+    const group = await groupModel.updateGroup(req.params.id, { name, type, owner, same_rate });
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }

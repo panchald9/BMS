@@ -91,6 +91,19 @@ export function createGroupBankRate(payload) {
   });
 }
 
+export function updateGroupBankRate(id, payload) {
+  return request(`/group-bank-rates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteGroupBankRate(id) {
+  return request(`/group-bank-rates/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export function createGroupAdminNumber(payload) {
   return request("/group-admin-numbers", {
     method: "POST",

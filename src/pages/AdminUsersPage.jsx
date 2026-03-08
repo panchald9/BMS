@@ -18,6 +18,7 @@ function toUiUser(apiUser) {
   return {
     id: String(apiUser.id),
     name: apiUser.name || "",
+    username: apiUser.username || "",
     email: apiUser.email || "",
     phone: apiUser.phone || "",
     userType: apiUser.role || "Client",
@@ -154,6 +155,9 @@ export default function AdminUsersPage() {
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold" data-testid={`text-user-name-${u.id}`}>
                             {u.name}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-user-username-${u.id}`}>
+                            @{u.username || "-"}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span data-testid={`text-user-email-${u.id}`}>{u.email}</span>

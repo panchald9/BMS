@@ -8,6 +8,17 @@ const initDb = async () => {
 
   await pool.query(`
     ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique
+    ON users (LOWER(username))
+    WHERE username IS NOT NULL AND LENGTH(TRIM(username)) > 0;
+  `);
+
+  await pool.query(`
+    ALTER TABLE users
     ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR(20);
   `);
 
