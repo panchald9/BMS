@@ -22,6 +22,7 @@ import {
 import { useToast } from "../hooks/use-toast";
 
 const money = (n) => `${Number(n || 0).toFixed(2)} \u20B9`;
+const amountTone = (n) => (Number(n || 0) < 0 ? "text-red-600" : "text-emerald-700");
 const num = (v) => {
   if (v === null || v === undefined) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -89,7 +90,7 @@ function BillsTable({ rows }) {
         )}
       </div>
       <div className="mt-2 flex justify-end text-sm font-semibold">
-        <span>Total: {money(total)}</span>
+        <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>
     </div>
   );
@@ -134,7 +135,7 @@ function OtherTable({ rows }) {
         )}
       </div>
       <div className="mt-2 flex justify-end text-sm font-semibold">
-        <span>Total: {money(total)}</span>
+        <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>
     </div>
   );
@@ -488,23 +489,23 @@ export default function AgentAllBillsPage() {
                 <OtherTable rows={filteredAgentOtherBills} />
 
                 <div className="rounded-xl border bg-muted/20 px-4 py-3">
-                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm font-semibold">Grand Total</div>
-                    <div className="text-sm font-semibold">{money(totals.grandTotal)}</div>
-                  </div>
-                  <div className="mt-3 rounded-xl border bg-white/70 p-3">
+                  <div className="mt-1 rounded-xl border bg-white/70 p-3">
                     <div className="text-xs text-muted-foreground">Bill type totals</div>
                     <div className="mt-1 text-sm font-semibold">Agent Bills + Agent Other Bills = Grand Total</div>
                     <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Agent Bills</div>
-                        <div className="font-semibold">{money(totals.billTotal)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totals.billTotal)}`}>{money(totals.billTotal)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Agent Other</div>
-                        <div className="font-semibold">{money(totals.otherTotal)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totals.otherTotal)}`}>{money(totals.otherTotal)}</div>
                       </div>
                     </div>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                    <div className="text-2xl font-semibold">Grand Total</div>
+                    <div className={`text-2xl font-semibold ${amountTone(totals.grandTotal)}`}>{money(totals.grandTotal)}</div>
                   </div>
                 </div>
               </div>

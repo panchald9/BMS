@@ -33,6 +33,7 @@ const emptySections = {
 };
 
 const money = (n) => `${Number(n || 0).toFixed(2)} \u20B9`;
+const amountTone = (n) => (Number(n || 0) < 0 ? "text-red-600" : "text-emerald-700");
 const num = (v) => {
   if (v === null || v === undefined) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -169,7 +170,7 @@ function BillTable({ type, rows }) {
         )}
       </div>
       <div className="mt-2 flex justify-end text-sm font-semibold">
-        <span>Total: {money(total)}</span>
+        <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>
     </div>
   );
@@ -543,11 +544,7 @@ export default function ClientAllBillsPage() {
                 ))}
 
                 <div className="rounded-xl border bg-muted/20 px-4 py-3">
-                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm font-semibold">Grand Total</div>
-                    <div className="text-sm font-semibold">{money(grandTotalAmount)}</div>
-                  </div>
-                  <div className="mt-3 rounded-xl border bg-white/70 p-3">
+                  <div className="mt-1 rounded-xl border bg-white/70 p-3">
                     <div className="text-xs text-muted-foreground">Bill type totals</div>
                     <div className="mt-1 text-sm font-semibold">
                       Claim Bills + Depo Bills + Processing Bills + Payment Bills + Other Bills + Pending/Due = Grand Total
@@ -555,27 +552,27 @@ export default function ClientAllBillsPage() {
                     <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-6">
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Claim</div>
-                        <div className="font-semibold">{money(totalsByType.claim)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totalsByType.claim)}`}>{money(totalsByType.claim)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Depo</div>
-                        <div className="font-semibold">{money(totalsByType.depo)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totalsByType.depo)}`}>{money(totalsByType.depo)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Processing</div>
-                        <div className="font-semibold">{money(totalsByType.processing)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totalsByType.processing)}`}>{money(totalsByType.processing)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Payment</div>
-                        <div className="font-semibold">{money(totalsByType.payment)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totalsByType.payment)}`}>{money(totalsByType.payment)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Other</div>
-                        <div className="font-semibold">{money(totalsByType.other)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(totalsByType.other)}`}>{money(totalsByType.other)}</div>
                       </div>
                       <div className="rounded-lg border bg-muted/10 px-3 py-2">
                         <div className="text-xs text-muted-foreground">Pending/Due</div>
-                        <div className="font-semibold">{money(pendingDue)}</div>
+                        <div className={`text-lg font-semibold ${amountTone(pendingDue)}`}>{money(pendingDue)}</div>
                       </div>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">Showing totals for all bills.</div>
@@ -584,16 +581,22 @@ export default function ClientAllBillsPage() {
                         <div className="rounded-lg border bg-muted/10 px-3 py-2">
                           <div className="text-xs text-muted-foreground">Selected range</div>
                           <div className="font-semibold">{selectedRangeLabel}</div>
-                          <div className="text-xs text-muted-foreground">Range total: {money(selectedRangeTotals.total)}</div>
+                          <div className={`text-sm font-semibold ${amountTone(selectedRangeTotals.total)}`}>
+                            Range total: {money(selectedRangeTotals.total)}
+                          </div>
                         </div>
                         <div className="rounded-lg border bg-muted/10 px-3 py-2">
                           <div className="text-xs text-muted-foreground">
                             Pending / Due before {selectedRange.fromISO ? formatDateDDMMYYYY(selectedRange.fromISO) : "-"}
                           </div>
-                          <div className="font-semibold">{money(pendingDue)}</div>
+                          <div className={`text-lg font-semibold ${amountTone(pendingDue)}`}>{money(pendingDue)}</div>
                         </div>
                       </div>
                     ) : null}
+                  </div>
+                  <div className="flex flex-col mt-4 gap-1 md:flex-row md:items-center md:justify-between">
+                    <div className="text-2xl font-semibold">Grand Total</div>
+                    <div className={`text-2xl font-semibold ${amountTone(grandTotalAmount)}`}>{money(grandTotalAmount)}</div>
                   </div>
                 </div>
               </div>
