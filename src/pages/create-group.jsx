@@ -76,7 +76,7 @@ export default function CreateGroupPage() {
   const [sameRate, setSameRate] = useState("");
   const [perBankRates, setPerBankRates] = useState({});
 
-  const [adminPhones, setAdminPhones] = useState([]);
+  const [adminPhones, setAdminPhones] = useState([emptyPhoneRow()]);
   const [employeePhones, setEmployeePhones] = useState([emptyPhoneRow()]);
   const [pastMembers, setPastMembers] = useState([]);
   const [pastMemberDraft, setPastMemberDraft] = useState(emptyPastMemberDraft());
@@ -142,7 +142,7 @@ export default function CreateGroupPage() {
   function addPhone(list) {
     if (list === "admin") {
       setAdminPhones((prev) => {
-        if (prev.length >= MAX_ADMIN_PHONES - 1) return prev;
+        if (prev.length >= MAX_ADMIN_PHONES) return prev;
         return [...prev, emptyPhoneRow()];
       });
       return;
@@ -160,7 +160,7 @@ export default function CreateGroupPage() {
         const removed = next[index];
         next.splice(index, 1);
         addPastMember(list, removed, "removed");
-        return next;
+        return next.length ? next : [emptyPhoneRow()];
       });
       return;
     }
@@ -251,7 +251,7 @@ export default function CreateGroupPage() {
       setAdminPhones((prev) => {
         const exists = prev.some((p) => cleanPhone(p.number) === entry.number);
         if (exists) return prev;
-        if (prev.length >= MAX_ADMIN_PHONES - 1) return prev;
+        if (prev.length >= MAX_ADMIN_PHONES) return prev;
         added = true;
         return [...prev, entry];
       });
@@ -329,13 +329,17 @@ export default function CreateGroupPage() {
         }
 
         if (isValidPhone(ownerAdminPhone)) {
-          promises.push(
-            createGroupAdminNumber({
-              group_id: groupId,
-              number: ownerAdminPhone,
-              name: ownerAdminName || null
-            })
-          );
+          const ownerNumber = cleanPhone(ownerAdminPhone);
+          const ownerExistsInAdmins = adminPhones.some((phone) => cleanPhone(phone.number) === ownerNumber);
+          if (!ownerExistsInAdmins) {
+            promises.push(
+              createGroupAdminNumber({
+                group_id: groupId,
+                number: ownerNumber,
+                name: ownerAdminName || null
+              })
+            );
+          }
         }
 
         adminPhones.forEach((phone) => {
@@ -392,7 +396,7 @@ export default function CreateGroupPage() {
         setRateMode("same");
         setSameRate("");
         setPerBankRates({});
-        setAdminPhones([]);
+        setAdminPhones([emptyPhoneRow()]);
         setEmployeePhones([emptyPhoneRow()]);
         setPastMembers([]);
         setPastMemberDraft(emptyPastMemberDraft());
@@ -579,6 +583,27 @@ export default function CreateGroupPage() {
                   </div>
                 ) : null}
 
+                <div className="rounded-2xl border bg-white p-4" data-testid="section-owner-fixed-info">
+                  <div className="mb-2 text-sm font-semibold text-muted-foreground">Group Owner (Fixed)</div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Input
+                      value={ownerAdminName}
+                      placeholder="Owner name"
+                      className="soft-ring h-11"
+                      data-testid="input-owner-fixed-name"
+                      disabled
+                    />
+                    <Input
+                      inputMode="tel"
+                      value={ownerAdminPhone}
+                      placeholder="Owner number"
+                      className="soft-ring h-11"
+                      data-testid="input-owner-fixed-number"
+                      disabled
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border bg-white p-4" data-testid="section-admin-phones">
                     <div className="flex items-center justify-between gap-2">
@@ -586,38 +611,10 @@ export default function CreateGroupPage() {
                         Admin Phone Number
                       </div>
                       <Badge variant="secondary" data-testid="badge-admin-phone-count">
-                        {1 + adminPhones.length}/{MAX_ADMIN_PHONES}
+                        {adminPhones.length}/{MAX_ADMIN_PHONES}
                       </Badge>
                     </div>
-                    <div className="mt-3 space-y-3" data-testid="list-admin-phones">
-                      <div className="flex items-center gap-2" data-testid="row-admin-phone-owner">
-                        <Input
-                          value={ownerAdminName}
-                          placeholder="Owner name"
-                          className="soft-ring h-11 flex-1"
-                          data-testid="input-admin-phone-owner-name"
-                          disabled
-                        />
-                        <Input
-                          inputMode="tel"
-                          value={ownerAdminPhone}
-                          placeholder="Owner number"
-                          className="soft-ring h-11 flex-1"
-                          data-testid="input-admin-phone-owner-number"
-                          disabled
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="icon"
-                          className="h-11 w-11 shrink-0 rounded-xl bg-[#e7e3f1] text-[#5a2ca0] hover:bg-[#ddd7ec]"
-                          data-testid="button-remove-admin-phone-owner"
-                          disabled
-                        >
-                          <span className="sr-only">Owner fixed</span>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    <div className="space-y-3 mt-3" data-testid="list-admin-phones">
                       {adminPhones.map((p, idx) => (
                         <div key={idx} className="flex items-center gap-2" data-testid={`row-admin-phone-${idx}`}>
                           <Input
@@ -663,14 +660,14 @@ export default function CreateGroupPage() {
                       variant="secondary"
                       className="mt-3 h-11 w-full bg-[#d9d3e8] text-[#3f178f] hover:bg-[#cfc8e0]"
                       onClick={() => addPhone("admin")}
-                      disabled={adminPhones.length >= MAX_ADMIN_PHONES - 1}
+                      disabled={adminPhones.length >= MAX_ADMIN_PHONES}
                       data-testid="button-add-admin-phone"
                     >
                       Add admin phone
                     </Button>
-                    {adminPhones.length >= MAX_ADMIN_PHONES - 1 ? (
+                    {adminPhones.length >= MAX_ADMIN_PHONES ? (
                       <div className="mt-2 text-xs text-muted-foreground">
-                        Maximum {MAX_ADMIN_PHONES} admin phone numbers allowed (including owner).
+                        Maximum {MAX_ADMIN_PHONES} admin phone numbers allowed.
                       </div>
                     ) : null}
                   </div>
