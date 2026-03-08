@@ -24,6 +24,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
 } from "./ui/Sidebar"
 
 /* ---------------- NAV ITEMS ---------------- */
@@ -56,10 +58,30 @@ function Section({ title, children }) {
   )
 }
 
+/* ---------------- NAV LINK ---------------- */
+
+function NavLink({ item }) {
+  const [location] = useLocation();
+  const { toggle } = useSidebar();
+  const Icon = item.icon;
+  const active = location === item.href;
+  
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={active}>
+        <Link href={item.href} onClick={() => setTimeout(toggle, 100)}>
+          <Icon className="h-4 w-4"/>
+          <span>{item.label}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 /* ---------------- SIDEBAR ---------------- */
 
 export default function AppSidebar({ children }) {
-  const [location, setLocation] = useLocation()
+  const [, setLocation] = useLocation()
 
   function handleSignOut() {
     localStorage.removeItem("authToken")
@@ -103,60 +125,27 @@ export default function AppSidebar({ children }) {
           {/* Navigation */}
           <Section title="Navigation">
             <SidebarMenu>
-              {navItems.filter(i => i.section==="navigation").map(item => {
-                const Icon = item.icon
-                const active = location === item.href
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href}>
-                        <Icon className="h-4 w-4"/>
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
+              {navItems.filter(i => i.section==="navigation").map(item => (
+                <NavLink key={item.href} item={item} />
+              ))}
             </SidebarMenu>
           </Section>
 
           {/* Groups */}
           <Section title="All Groups">
             <SidebarMenu>
-              {navItems.filter(i => i.section==="groups").map(item => {
-                const Icon = item.icon
-                const active = location === item.href
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href}>
-                        <Icon className="h-4 w-4"/>
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
+              {navItems.filter(i => i.section==="groups").map(item => (
+                <NavLink key={item.href} item={item} />
+              ))}
             </SidebarMenu>
           </Section>
 
           {/* Settings */}
           <Section title="Settings">
             <SidebarMenu>
-              {navItems.filter(i => i.section==="settings").map(item => {
-                const Icon = item.icon
-                const active = location === item.href
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href}>
-                        <Icon className="h-4 w-4"/>
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
+              {navItems.filter(i => i.section==="settings").map(item => (
+                <NavLink key={item.href} item={item} />
+              ))}
             </SidebarMenu>
           </Section>
         </SidebarContent>
@@ -164,7 +153,7 @@ export default function AppSidebar({ children }) {
         {/* Footer */}
         <SidebarFooter className="px-3 py-3">
           <button
-            className="w-full rounded-full bg-zinc-100 px-4 py-2 text-left text-sm hover:bg-zinc-200"
+            className="w-full rounded-full bg-zinc-100 px-4 py-2 text-left text-sm hover:bg-zinc-200 btn-touch"
             onClick={handleSignOut}
           >
             Sign Out
@@ -173,7 +162,10 @@ export default function AppSidebar({ children }) {
 
       </Sidebar>
 
-      {children}
+      <div className="flex-1 flex flex-col min-w-0">
+        <SidebarTrigger />
+        {children}
+      </div>
     </SidebarProvider>
   )
 }

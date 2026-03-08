@@ -23,6 +23,7 @@ import {
   updateProcessingGroupCalculation,
   updateTransactionDetail,
   updateDollarRate,
+  updatePaymentMethod,
 } from "../lib/api";
 import { formatDateDDMMYYYY, todayISO } from "../lib/date";
 import AppSidebar from "../components/app-sidebar";
@@ -133,6 +134,8 @@ export default function ProcessingPaymentPage() {
   const [paymentGroupPct, setPaymentGroupPct] = useState("");
   const [paymentGroupId, setPaymentGroupId] = useState("");
   const [newPaymentMethodName, setNewPaymentMethodName] = useState("");
+  const [editingPaymentMethodId, setEditingPaymentMethodId] = useState("");
+  const [editingPaymentMethodName, setEditingPaymentMethodName] = useState("");
   const [editingDollarRateId, setEditingDollarRateId] = useState("");
   const [dollarRateFormDate, setDollarRateFormDate] = useState("");
   const [dollarRateFormValue, setDollarRateFormValue] = useState("");
@@ -430,12 +433,70 @@ export default function ProcessingPaymentPage() {
                 <div className="divide-y rounded-xl border">
                   {paymentMethods.map((m) => (
                     <div key={m.id} className="flex items-center justify-between px-4 py-3">
-                      <div>{m.name}</div>
-                      <Button variant="ghost" disabled={busy} onClick={async () => {
-                        try { setBusy(true); await deletePaymentMethod(m.id); setPaymentMethods((p) => p.filter((x) => x.id !== m.id)); }
-                        catch (e) { toast({ title: "Delete failed", description: e.message, variant: "destructive" }); }
-                        finally { setBusy(false); }
-                      }}>Delete</Button>
+                      {editingPaymentMethodId === m.id ? (
+                        <div className="flex w-full items-center gap-2">
+                          <Input
+                            value={editingPaymentMethodName}
+                            onChange={(e) => setEditingPaymentMethodName(e.target.value)}
+                            className="h-9"
+                            placeholder="Payment method name"
+                          />
+                          <Button
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={async () => {
+                              const name = editingPaymentMethodName.trim();
+                              if (!name) return;
+                              try {
+                                setBusy(true);
+                                const updated = await updatePaymentMethod(m.id, { name });
+                                setPaymentMethods((prev) =>
+                                  prev.map((x) => (x.id === m.id ? { ...x, name: updated?.name || name } : x))
+                                );
+                                setEditingPaymentMethodId("");
+                                setEditingPaymentMethodName("");
+                              } catch (e) {
+                                toast({ title: "Update failed", description: e.message, variant: "destructive" });
+                              } finally {
+                                setBusy(false);
+                              }
+                            }}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => {
+                              setEditingPaymentMethodId("");
+                              setEditingPaymentMethodName("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div>{m.name}</div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() => {
+                                setEditingPaymentMethodId(m.id);
+                                setEditingPaymentMethodName(m.name || "");
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button variant="ghost" disabled={busy} onClick={async () => {
+                              try { setBusy(true); await deletePaymentMethod(m.id); setPaymentMethods((p) => p.filter((x) => x.id !== m.id)); }
+                              catch (e) { toast({ title: "Delete failed", description: e.message, variant: "destructive" }); }
+                              finally { setBusy(false); }
+                            }}>Delete</Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -518,22 +579,6 @@ export default function ProcessingPaymentPage() {
                   <div><Label>Rate (₹)</Label><Input value={dollarRateNum > 0 ? dollarRateNum.toFixed(2) : ""} readOnly /></div>
                 </div>
                 <div className="h-px bg-border" />
-                <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Processing Calculation</div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div><Label>Processing %</Label><Input inputMode="decimal" type="number"  value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
-                  <div>
-                    <Label>Processing Group</Label>
-                    <SearchableSelect
-                      value={processingGroupId}
-                      onValueChange={setProcessingGroupId}
-                      options={processingGroupOptions}
-                      placeholder="Select Group..."
-                    />
-                  </div>
-                  <div><Label>Client</Label><Input readOnly value={selectedProcessingGroup?.clientName || ""} /></div>
-                  <div><Label>Processing Total (₹)</Label><Input readOnly value={processingTotal.toFixed(2)} /></div>
-                </div>
-                <div className="h-px bg-border" />
                 <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Payment Group Calculation</div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
@@ -554,6 +599,22 @@ export default function ProcessingPaymentPage() {
                   </div>
                   <div><Label>Client</Label><Input readOnly value={selectedPaymentGroup?.clientName || ""} /></div>
                   <div><Label>Payment Total (₹)</Label><Input readOnly value={paymentTotal.toFixed(2)} /></div>
+                </div>
+                <div className="h-px bg-border" />
+                <div className="flex items-center gap-2 text-sm font-semibold"><CreditCard className="h-4 w-4 text-primary" /> Processing Calculation</div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div><Label>Processing %</Label><Input inputMode="decimal" type="number"  value={processingPct} onChange={(e) => setProcessingPct(e.target.value)} onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }} /></div>
+                  <div>
+                    <Label>Processing Group</Label>
+                    <SearchableSelect
+                      value={processingGroupId}
+                      onValueChange={setProcessingGroupId}
+                      options={processingGroupOptions}
+                      placeholder="Select Group..."
+                    />
+                  </div>
+                  <div><Label>Client</Label><Input readOnly value={selectedProcessingGroup?.clientName || ""} /></div>
+                  <div><Label>Processing Total (₹)</Label><Input readOnly value={processingTotal.toFixed(2)} /></div>
                 </div>
                 <Button type="submit" disabled={!canSave || busy} className="w-full">{busy ? "Saving..." : "Save Transaction"}</Button>
               </form>

@@ -94,27 +94,27 @@ export default function BanksPage() {
   return (
     <AppSidebar>
       <div className="min-h-svh w-full bg-background">
-        <div className="mx-auto w-full max-w-6xl px-6 py-8">
+        <div className="container-responsive py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-4xl font-semibold tracking-tight">Banks</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight">Banks</h1>
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 Create new banks, edit names, and manage your list.
               </p>
-              {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+              {error ? <p className="mt-2 text-xs sm:text-sm text-red-600">{error}</p> : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{banks.length} banks</Badge>
-              <Button variant="secondary" onClick={() => setLocation("/dashboard")}>
+              <Button variant="secondary" onClick={() => setLocation("/dashboard")} className="btn-touch">
                 Back to Dashboard
               </Button>
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-5">
             {/* CREATE BANK */}
-            <Card className="rounded-2xl border bg-white/70 p-5 shadow-sm lg:col-span-2">
+            <Card className="rounded-2xl border bg-white/70 p-4 sm:p-5 shadow-sm lg:col-span-2">
               <div className="mb-4 flex items-start justify-between">
                 <div>
                   <div className="text-sm font-semibold">Create Bank</div>
@@ -129,65 +129,65 @@ export default function BanksPage() {
 
               <form onSubmit={addBank} className="space-y-4">
                 <div>
-                  <Label>Bank Name</Label>
+                  <Label className="text-sm">Bank Name</Label>
                   <Input
                     value={bankName}
                     onChange={e => setBankName(e.target.value)}
                     placeholder="e.g., HBL"
-                    className="mt-1 h-11"
+                    className="mt-1 h-11 sm:h-12 text-sm sm:text-base"
                   />
                 </div>
 
-                <Button type="submit" className="h-11 w-full" disabled={!canAdd}>
+                <Button type="submit" className="h-11 sm:h-12 w-full btn-touch" disabled={!canAdd}>
                   <Plus className="h-4 w-4" /> Add bank
                 </Button>
               </form>
             </Card>
 
             {/* BANK LIST */}
-            <Card className="rounded-2xl border bg-white/70 p-5 shadow-sm lg:col-span-3">
+            <Card className="rounded-2xl border bg-white/70 p-4 sm:p-5 shadow-sm lg:col-span-3">
               <div className="text-sm font-semibold">Bank list</div>
               <Separator className="my-4" />
 
               <div className="space-y-2">
                 {loading ? (
-                  <div className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground">
+                  <div className="rounded-2xl border bg-white/50 px-4 py-4 text-xs sm:text-sm text-muted-foreground">
                     Loading banks...
                   </div>
                 ) : banks.length ? (
                   banks.map(b => {
                     const isEditing = editingId === b.id;
                     return (
-                      <div key={b.id} className="rounded-2xl border bg-white/70 p-4">
+                      <div key={b.id} className="rounded-2xl border bg-white/70 p-3 sm:p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
                           {!isEditing ? (
-                            <div className="text-sm font-semibold">{b.bank_name}</div>
+                            <div className="text-sm font-semibold break-words">{b.bank_name}</div>
                           ) : (
                             <Input
                               value={editingValue}
                               onChange={e => setEditingValue(e.target.value)}
-                              className="h-10"
+                              className="h-10 sm:h-11 text-sm sm:text-base"
                             />
                           )}
 
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             {!isEditing ? (
                               <>
-                                <Button variant="secondary" onClick={() => startEdit(b)}>
-                                  <Pencil className="h-4 w-4" /> Edit
+                                <Button variant="secondary" onClick={() => startEdit(b)} className="btn-touch flex-1 sm:flex-none">
+                                  <Pencil className="h-4 w-4" /> <span className="sm:inline">Edit</span>
                                 </Button>
-                                <Button variant="secondary" onClick={() => removeBank(b.id)}>
-                                  <Trash2 className="h-4 w-4" /> Delete
+                                <Button variant="secondary" onClick={() => removeBank(b.id)} className="btn-touch flex-1 sm:flex-none">
+                                  <Trash2 className="h-4 w-4" /> <span className="sm:inline">Delete</span>
                                 </Button>
                               </>
                             ) : (
                               <>
-                                <Button onClick={saveEdit} disabled={!editingValue.trim()}>
-                                  <Save className="h-4 w-4" /> Save
+                                <Button onClick={saveEdit} disabled={!editingValue.trim()} className="btn-touch flex-1 sm:flex-none">
+                                  <Save className="h-4 w-4" /> <span className="sm:inline">Save</span>
                                 </Button>
-                                <Button variant="secondary" onClick={cancelEdit}>
-                                  <X className="h-4 w-4" /> Cancel
+                                <Button variant="secondary" onClick={cancelEdit} className="btn-touch flex-1 sm:flex-none">
+                                  <X className="h-4 w-4" /> <span className="sm:inline">Cancel</span>
                                 </Button>
                               </>
                             )}
@@ -198,7 +198,7 @@ export default function BanksPage() {
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl border bg-white/50 px-4 py-4 text-sm text-muted-foreground">
+                  <div className="rounded-2xl border bg-white/50 px-4 py-4 text-xs sm:text-sm text-muted-foreground">
                     No banks yet. Create your first bank on the left.
                   </div>
                 )}

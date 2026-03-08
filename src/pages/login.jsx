@@ -58,22 +58,22 @@ export default function LoginPage() {
 
   return (
     <div className="app-shell min-h-screen">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-10">
-        <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 sm:px-6 py-6 sm:py-10">
+        <div className="grid w-full grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 md:gap-10">
           <div className="flex flex-col justify-center">
             <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border bg-white/70 px-3 py-1 text-xs text-muted-foreground shadow-sm">
               <span className="h-2 w-2 rounded-full bg-emerald-500" data-testid="status-app" />
               Billing Manager • Prototype
             </div>
 
-            <h1 className="font-serif text-3xl leading-tight tracking-tight md:text-4xl" data-testid="text-title">
+            <h1 className="font-serif text-2xl sm:text-3xl leading-tight tracking-tight md:text-4xl" data-testid="text-title">
               Login to manage your billing users
             </h1>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground" data-testid="text-subtitle">
+            <p className="mt-3 max-w-md text-xs sm:text-sm leading-relaxed text-muted-foreground" data-testid="text-subtitle">
               Admin can create Clients and Agents, assign work types, and control access.
             </p>
 
-            <div className="mt-7 grid max-w-md grid-cols-2 gap-3 text-xs text-muted-foreground">
+            <div className="mt-6 sm:mt-7 grid max-w-md grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted-foreground">
               <div className="glass-card rounded-xl p-4" data-testid="card-feature-1">
                 <div className="mb-2 font-medium text-foreground">Admin-only changes</div>
                 Only you can add data & create users.
@@ -85,8 +85,8 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Card className="glass-card rounded-2xl p-6 md:p-7">
-            <form onSubmit={onSubmit} className="space-y-5" data-testid="form-login">
+          <Card className="glass-card rounded-2xl p-5 sm:p-6 md:p-7">
+            <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5" data-testid="form-login">
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
                   <Label htmlFor="email" className="text-sm" data-testid="label-email">
@@ -101,7 +101,7 @@ export default function LoginPage() {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="soft-ring h-11 pl-10"
+                    className="soft-ring h-11 sm:h-12 pl-10 text-sm sm:text-base"
                     data-testid="input-email"
                   />
                 </div>
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:bg-black/5"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:bg-black/5 btn-touch"
                     data-testid="button-toggle-password"
                   >
                     {showPass ? (
@@ -138,7 +138,7 @@ export default function LoginPage() {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="soft-ring h-11 pl-10 pr-10"
+                    className="soft-ring h-11 sm:h-12 pl-10 pr-10 text-sm sm:text-base"
                     data-testid="input-password"
                   />
                 </div>
@@ -146,7 +146,7 @@ export default function LoginPage() {
 
               {error ? (
                 <div
-                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs sm:text-sm text-red-700"
                   data-testid="status-login-error"
                 >
                   {error}
@@ -155,7 +155,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="h-11 w-full"
+                className="h-11 sm:h-12 w-full btn-touch text-sm sm:text-base"
                 disabled={!canSubmit || isSubmitting}
                 data-testid="button-login"
               >
