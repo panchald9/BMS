@@ -108,6 +108,8 @@ export default function DashboardPage() {
   const topClients = useMemo(() => {
     const groupsByClientId = new Map();
     for (const g of groups) {
+      const groupType = String(g.type || "").trim().toLowerCase();
+      if (groupType !== "payment") continue;
       const key = String(g.owner ?? "");
       if (!key) continue;
       if (!groupsByClientId.has(key)) groupsByClientId.set(key, []);
