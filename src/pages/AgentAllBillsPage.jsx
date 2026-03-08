@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -80,7 +80,7 @@ function BillsTable({ rows }) {
                     <td className="px-3 py-2">{r.bank || "-"}</td>
                     <td className="px-3 py-2 text-right">{num(r.amountUsd).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">{num(r.rate).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-medium text-emerald-700">{num(r.totalInr).toFixed(2)}</td>
+                    <td className={`px-3 py-2 text-right font-medium ${num(r.totalInr) < 0 ? "text-red-600" : "text-emerald-700"}`}>{num(r.totalInr).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -146,6 +146,9 @@ export default function AgentAllBillsPage() {
 
   const [agents, setAgents] = useState([]);
   const [selectedAgentId, setSelectedAgentId] = useState(ALL_AGENTS_VALUE);
+  const [agentFilterText, setAgentFilterText] = useState("");
+  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  const agentDropdownRef = useRef(null);
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -189,6 +192,19 @@ export default function AgentAllBillsPage() {
       }
     })();
   }, [selectedAgentId, toast]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!agentDropdownRef.current) return;
+      if (!agentDropdownRef.current.contains(event.target)) {
+        setAgentDropdownOpen(false);
+        setAgentFilterText("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const allRows = useMemo(() => {
     const billRows = (data.agentBills || []).map((x) => ({
@@ -266,6 +282,16 @@ export default function AgentAllBillsPage() {
 
   const filteredAgentBills = useMemo(() => filtered.filter((x) => x.section === "bill"), [filtered]);
   const filteredAgentOtherBills = useMemo(() => filtered.filter((x) => x.section === "other"), [filtered]);
+  const filteredAgents = useMemo(() => {
+    const q = agentFilterText.trim().toLowerCase();
+    if (!q) return agents;
+    return agents.filter((a) => (a.name || "").toLowerCase().includes(q));
+  }, [agents, agentFilterText]);
+
+  const selectedAgentLabel = useMemo(() => {
+    if (selectedAgentId === ALL_AGENTS_VALUE) return "All Agents";
+    return agents.find((a) => a.id === selectedAgentId)?.name || "Select Agent";
+  }, [agents, selectedAgentId]);
 
   const totals = useMemo(() => {
     const billTotal = filteredAgentBills.reduce((acc, r) => acc + num(r.totalInr), 0);
@@ -339,15 +365,65 @@ export default function AgentAllBillsPage() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4 lg:items-end">
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground">Agent</Label>
-                    <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
-                      <SelectTrigger className="mt-1 h-11">
-                        <SelectValue placeholder="Select Agent" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL_AGENTS_VALUE}>All Agents</SelectItem>
-                        {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div ref={agentDropdownRef} className="relative mt-1">
+                      <div className="flex h-11 w-full items-center rounded-xl border border-violet-400/70 bg-white px-3 shadow-sm">
+                        <input
+                          value={agentDropdownOpen ? agentFilterText : selectedAgentLabel}
+                          onChange={(e) => setAgentFilterText(e.target.value)}
+                          onFocus={() => {
+                            setAgentDropdownOpen(true);
+                            setAgentFilterText("");
+                          }}
+                          placeholder="Select Agent..."
+                          className="h-full w-full bg-transparent text-sm outline-none"
+                          readOnly={!agentDropdownOpen}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgentDropdownOpen((prev) => !prev);
+                            if (!agentDropdownOpen) setAgentFilterText("");
+                          }}
+                          className="ml-2"
+                        >
+                          <ChevronDown className="h-4 w-4 opacity-60" />
+                        </button>
+                      </div>
+                      {agentDropdownOpen ? (
+                        <div className="absolute z-50 mt-2 w-full rounded-xl border bg-white p-1 shadow-md">
+                          <div className="max-h-56 overflow-y-auto rounded-lg bg-violet-100/40 py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAgentId(ALL_AGENTS_VALUE);
+                                setAgentFilterText("");
+                                setAgentDropdownOpen(false);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                            >
+                              All Agents
+                            </button>
+                            {filteredAgents.map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAgentId(a.id);
+                                  setAgentFilterText("");
+                                  setAgentDropdownOpen(false);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                              >
+                                {a.name}
+                              </button>
+                            ))}
+                            {!filteredAgents.length ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">No agent found.</div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div>

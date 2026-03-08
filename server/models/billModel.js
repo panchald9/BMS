@@ -320,7 +320,7 @@ const getAgentAllBills = async (agentId) => {
             bk.bank_name,
             ab.amount,
             ab.rate,
-            ABS(ab.total) AS total
+            -ABS(COALESCE(ab.total, 0)) AS total
      FROM agent_bill ab
      JOIN groups g ON g.id = ab.group_id
      LEFT JOIN users c ON c.id = ab.client_id
@@ -335,7 +335,7 @@ const getAgentAllBills = async (agentId) => {
             ob.bill_date,
             ob.comment,
             ob.amount,
-            ABS(COALESCE(ob.amount, 0)) AS total
+            -ABS(COALESCE(ob.amount, 0)) AS total
      FROM other_bill ob
      WHERE LOWER(COALESCE(ob.kind, '')) = 'agent'
        ${hasAgentFilter ? 'AND ob.agent_id = $1' : ''}

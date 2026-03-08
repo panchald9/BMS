@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -181,6 +181,9 @@ export default function ClientAllBillsPage() {
 
   const [clients, setClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState(ALL_CLIENTS_VALUE);
+  const [clientFilterText, setClientFilterText] = useState("");
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const clientDropdownRef = useRef(null);
   const [sections, setSections] = useState(emptySections);
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -223,6 +226,19 @@ export default function ClientAllBillsPage() {
       }
     })();
   }, [selectedClientId, toast]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!clientDropdownRef.current) return;
+      if (!clientDropdownRef.current.contains(event.target)) {
+        setClientDropdownOpen(false);
+        setClientFilterText("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const baseRows = useMemo(() => mapRows(sections), [sections]);
 
@@ -284,6 +300,17 @@ export default function ClientAllBillsPage() {
     filteredRows.forEach((r) => map.get(r.type)?.push(r));
     return map;
   }, [filteredRows]);
+
+  const filteredClients = useMemo(() => {
+    const q = clientFilterText.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) => (c.name || "").toLowerCase().includes(q));
+  }, [clients, clientFilterText]);
+
+  const selectedClientLabel = useMemo(() => {
+    if (selectedClientId === ALL_CLIENTS_VALUE) return "All Clients";
+    return clients.find((c) => c.id === selectedClientId)?.name || "Select Client";
+  }, [clients, selectedClientId]);
 
   const selectedRangeTotals = useMemo(
     () =>
@@ -392,17 +419,65 @@ export default function ClientAllBillsPage() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end lg:gap-4">
                   <div>
                     <Label className="text-xs font-medium text-muted-foreground">Client</Label>
-                    <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                      <SelectTrigger className="mt-1 h-11">
-                        <SelectValue placeholder="Select Client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL_CLIENTS_VALUE}>All Clients</SelectItem>
-                        {clients.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div ref={clientDropdownRef} className="relative mt-1">
+                      <div className="flex h-11 w-full items-center rounded-xl border border-violet-400/70 bg-white px-3 shadow-sm">
+                        <input
+                          value={clientDropdownOpen ? clientFilterText : selectedClientLabel}
+                          onChange={(e) => setClientFilterText(e.target.value)}
+                          onFocus={() => {
+                            setClientDropdownOpen(true);
+                            setClientFilterText("");
+                          }}
+                          placeholder="Select Client..."
+                          className="h-full w-full bg-transparent text-sm outline-none"
+                          readOnly={!clientDropdownOpen}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClientDropdownOpen((prev) => !prev);
+                            if (!clientDropdownOpen) setClientFilterText("");
+                          }}
+                          className="ml-2"
+                        >
+                          <ChevronDown className="h-4 w-4 opacity-60" />
+                        </button>
+                      </div>
+                      {clientDropdownOpen ? (
+                        <div className="absolute z-50 mt-2 w-full rounded-xl border bg-white p-1 shadow-md">
+                          <div className="max-h-56 overflow-y-auto rounded-lg bg-violet-100/40 py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedClientId(ALL_CLIENTS_VALUE);
+                                setClientFilterText("");
+                                setClientDropdownOpen(false);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                            >
+                              All Clients
+                            </button>
+                            {filteredClients.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClientId(c.id);
+                                  setClientFilterText("");
+                                  setClientDropdownOpen(false);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                              >
+                                {c.name}
+                              </button>
+                            ))}
+                            {!filteredClients.length ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">No client found.</div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div>
