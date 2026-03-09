@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Layers, Plus, X } from "lucide-react";
+import { ChevronDown, Layers, Plus, X } from "lucide-react";
 import AppSidebar from "../components/app-sidebar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/button";
@@ -68,6 +68,9 @@ export default function CreateGroupPage() {
   const [clients, setClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [ownerClientId, setOwnerClientId] = useState("");
+  const [ownerFilterText, setOwnerFilterText] = useState("");
+  const [ownerDropdownOpen, setOwnerDropdownOpen] = useState(false);
+  const ownerDropdownRef = useRef(null);
 
   const [groupName, setGroupName] = useState("");
   const [groupType, setGroupType] = useState("Claim");
@@ -87,6 +90,13 @@ export default function CreateGroupPage() {
   );
   const ownerAdminName = String(selectedClient?.name || "").trim();
   const ownerAdminPhone = cleanPhone(selectedClient?.phone || selectedClient?.alternate_phone || "");
+  const ownerSelectedLabel = selectedClient?.name || "";
+
+  const filteredOwners = useMemo(() => {
+    const q = ownerFilterText.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) => String(c.name || "").toLowerCase().includes(q));
+  }, [clients, ownerFilterText]);
 
   useEffect(() => {
     getClientUsers()
@@ -107,6 +117,19 @@ export default function CreateGroupPage() {
         .finally(() => setLoadingBanks(false));
     }
   }, [rateMode, banks.length]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!ownerDropdownRef.current) return;
+      if (!ownerDropdownRef.current.contains(event.target)) {
+        setOwnerDropdownOpen(false);
+        setOwnerFilterText("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const canCreate = useMemo(() => {
     if (!groupName.trim()) return false;
@@ -491,22 +514,71 @@ export default function CreateGroupPage() {
                   <Label className="text-sm" data-testid="label-group-owner">
                     Group Owner
                   </Label>
-                  <Select value={ownerClientId} onValueChange={(v) => setOwnerClientId(v)} disabled={loadingClients}>
-                    <SelectTrigger className="soft-ring mt-1 h-11" data-testid="select-group-owner">
-                      <SelectValue placeholder={loadingClients ? "Loading..." : clients.length ? "Select client" : "No clients created"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.length ? (
-                        clients.map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)} data-testid={`option-group-owner-${c.id}`}>
-                            {c.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-2 text-sm text-muted-foreground">No clients available</div>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <div ref={ownerDropdownRef} className="relative mt-1">
+                    <div className="flex h-11 w-full items-center rounded-xl border border-violet-400/70 bg-white px-3 shadow-sm">
+                      <input
+                        value={ownerDropdownOpen ? ownerFilterText : ownerSelectedLabel}
+                        onChange={(e) => {
+                          setOwnerFilterText(e.target.value);
+                          if (!ownerDropdownOpen) setOwnerDropdownOpen(true);
+                        }}
+                        onFocus={() => {
+                          if (loadingClients || !clients.length) return;
+                          setOwnerDropdownOpen(true);
+                          setOwnerFilterText("");
+                        }}
+                        placeholder={
+                          loadingClients
+                            ? "Loading..."
+                            : clients.length
+                              ? "Select Agent..."
+                              : "No clients created"
+                        }
+                        className="h-full w-full bg-transparent text-sm outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                        readOnly={!ownerDropdownOpen}
+                        disabled={loadingClients || !clients.length}
+                        data-testid="select-group-owner"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (loadingClients || !clients.length) return;
+                          setOwnerDropdownOpen((prev) => !prev);
+                          if (!ownerDropdownOpen) setOwnerFilterText("");
+                        }}
+                        className="ml-2 text-muted-foreground"
+                        disabled={loadingClients || !clients.length}
+                      >
+                        <ChevronDown className="h-4 w-4 opacity-60" />
+                      </button>
+                    </div>
+
+                    {ownerDropdownOpen ? (
+                      <div className="absolute z-50 mt-2 w-full rounded-xl border bg-white p-1 shadow-md">
+                        <div className="max-h-56 overflow-y-auto rounded-lg bg-violet-100/40 py-1">
+                          {filteredOwners.length ? (
+                            filteredOwners.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setOwnerClientId(String(c.id));
+                                  setOwnerFilterText("");
+                                  setOwnerDropdownOpen(false);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                                data-testid={`option-group-owner-${c.id}`}
+                              >
+                                {c.name}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">No owner found.</div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 {isClaimOrDepo(groupType) ? (
