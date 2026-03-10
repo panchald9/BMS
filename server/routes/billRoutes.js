@@ -8,6 +8,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authMiddleware, billController.getBills);
 router.get('/agent', authMiddleware, billController.getAgentBills);
+router.get('/top-clients', authMiddleware, billController.getTopClientSummaries);
 router.get('/client-all', authMiddleware, billController.getClientAllBills);
 router.post('/client-all/export', authMiddleware, billController.exportClientAllBillsExcel);
 router.get('/agent-all', authMiddleware, billController.getAgentAllBills);

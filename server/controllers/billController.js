@@ -107,6 +107,37 @@ exports.getClientAllBills = async (req, res) => {
   }
 };
 
+exports.getTopClientSummaries = async (req, res) => {
+  try {
+    const rawFromDate = String(req.query.from_date || '').trim();
+    const rawToDate = String(req.query.to_date || '').trim();
+
+    let fromDate = null;
+    let toDate = null;
+
+    if (rawFromDate) {
+      const parsedFromDate = validateBillDateInput(rawFromDate);
+      if (!parsedFromDate.ok) {
+        return res.status(400).json({ message: `Invalid from_date: ${parsedFromDate.message}` });
+      }
+      fromDate = parsedFromDate.value;
+    }
+
+    if (rawToDate) {
+      const parsedToDate = validateBillDateInput(rawToDate);
+      if (!parsedToDate.ok) {
+        return res.status(400).json({ message: `Invalid to_date: ${parsedToDate.message}` });
+      }
+      toDate = parsedToDate.value;
+    }
+
+    const rows = await billModel.getTopClientSummaries({ fromDate, toDate });
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 exports.exportClientAllBillsExcel = async (req, res) => {
   try {
     const BILL_TYPES = ['Claim Bills', 'Depo Bills', 'Other Bills', 'Processing Bills', 'Payment Bills'];

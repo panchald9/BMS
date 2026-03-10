@@ -307,6 +307,88 @@ const getClientAllBills = async (clientId) => {
   };
 };
 
+const getTopClientSummaries = async ({ fromDate, toDate } = {}) => {
+  const values = [];
+  const pushValue = (value) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+
+  const fromDateRef = fromDate ? pushValue(fromDate) : null;
+  const toDateRef = toDate ? pushValue(toDate) : null;
+
+  const rangeConditions = [];
+  if (fromDateRef) rangeConditions.push(`e.entry_date >= ${fromDateRef}`);
+  if (toDateRef) rangeConditions.push(`e.entry_date <= ${toDateRef}`);
+  const rangeConditionSql = rangeConditions.length ? rangeConditions.join(' AND ') : 'TRUE';
+  const pendingDueSql = fromDateRef ? `CASE WHEN e.entry_date < ${fromDateRef} THEN e.total ELSE 0 END` : '0';
+
+  const result = await pool.query(
+    `WITH client_base AS (
+       SELECT u.id, u.name
+       FROM users u
+       WHERE LOWER(COALESCE(u.role, '')) = 'client'
+     ),
+     payment_groups AS (
+       SELECT CAST(g.owner AS INT) AS client_id,
+              string_agg(DISTINCT g.name, ', ' ORDER BY g.name) AS payment_groups
+       FROM groups g
+       WHERE LOWER(COALESCE(g.type, '')) = 'payment'
+         AND g.owner IS NOT NULL
+         AND TRIM(CAST(g.owner AS TEXT)) <> ''
+       GROUP BY CAST(g.owner AS INT)
+     ),
+     entries AS (
+       SELECT b.client_id,
+              b.bill_date::date AS entry_date,
+              ABS(COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
+       FROM bill b
+       WHERE b.client_id IS NOT NULL
+
+       UNION ALL
+
+       SELECT ob.client_id,
+              ob.bill_date::date AS entry_date,
+              ABS(COALESCE(ob.amount, 0)) AS total
+       FROM other_bill ob
+       WHERE ob.client_id IS NOT NULL
+         AND LOWER(COALESCE(ob.kind, '')) = 'client'
+
+       UNION ALL
+
+       SELECT pc.client_id,
+              tx.transaction_date::date AS entry_date,
+              ABS(COALESCE(pc.processing_total, 0)) AS total
+       FROM processing_calculation pc
+       LEFT JOIN transaction_details tx ON tx.id = pc.id
+       WHERE pc.client_id IS NOT NULL
+
+       UNION ALL
+
+       SELECT pgc.client_id,
+              tx.transaction_date::date AS entry_date,
+              COALESCE(pgc.processing_total, 0) AS total
+       FROM processing_group_calculation pgc
+       LEFT JOIN transaction_details tx ON tx.id = pgc.id
+       WHERE pgc.client_id IS NOT NULL
+     )
+     SELECT cb.id AS client_id,
+            cb.name AS client_name,
+            COALESCE(pg.payment_groups, '') AS payment_groups,
+            MAX(e.entry_date) AS last_entry_date,
+            ROUND(COALESCE(SUM(CASE WHEN ${rangeConditionSql} THEN e.total ELSE 0 END), 0)::numeric, 2) AS total,
+            ROUND(COALESCE(SUM(${pendingDueSql}), 0)::numeric, 2) AS pending_due
+     FROM client_base cb
+     LEFT JOIN payment_groups pg ON pg.client_id = cb.id
+     LEFT JOIN entries e ON e.client_id = cb.id
+     GROUP BY cb.id, cb.name, pg.payment_groups
+     ORDER BY total DESC, last_entry_date DESC NULLS LAST, cb.name ASC`,
+    values
+  );
+
+  return result.rows;
+};
+
 const getAgentAllBills = async (agentId) => {
   const hasAgentFilter = Number.isInteger(agentId) && agentId > 0;
   const values = hasAgentFilter ? [agentId] : [];
@@ -457,6 +539,7 @@ module.exports = {
   getBills,
   getAgentBills,
   getClientAllBills,
+  getTopClientSummaries,
   getAgentAllBills,
   getBulkUploadLookupData,
   updateBill,

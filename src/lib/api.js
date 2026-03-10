@@ -247,6 +247,14 @@ export function getClientAllBills(clientId) {
   return request(`/bills/client-all?${params.toString()}`);
 }
 
+export function getTopClientSummaries(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.fromDate) params.set("from_date", String(filters.fromDate));
+  if (filters.toDate) params.set("to_date", String(filters.toDate));
+  const query = params.toString();
+  return request(`/bills/top-clients${query ? `?${query}` : ""}`);
+}
+
 export async function exportClientAllBillsExcel(payload) {
   const token = localStorage.getItem("authToken");
   const response = await fetch(`${API_BASE}/bills/client-all/export`, {
