@@ -338,28 +338,31 @@ const getTopClientSummaries = async ({ fromDate, toDate } = {}) => {
          AND TRIM(CAST(g.owner AS TEXT)) <> ''
        GROUP BY CAST(g.owner AS INT)
      ),
-     entries AS (
-       SELECT b.client_id,
-              b.bill_date::date AS entry_date,
-              ABS(COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) AS total
-       FROM bill b
-       WHERE b.client_id IS NOT NULL
+    entries AS (
+      SELECT b.client_id,
+             b.bill_date::date AS entry_date,
+             CASE
+               WHEN COALESCE(b.amount, 0) = 0 OR COALESCE(b.rate, 0) = 0 THEN COALESCE(b.amount, 0) * COALESCE(b.rate, 0)
+               ELSE ABS(COALESCE(b.amount, 0) * COALESCE(b.rate, 0)) * SIGN(COALESCE(b.amount, 0))
+             END AS total
+      FROM bill b
+      WHERE b.client_id IS NOT NULL
 
-       UNION ALL
+      UNION ALL
 
-       SELECT ob.client_id,
-              ob.bill_date::date AS entry_date,
-              ABS(COALESCE(ob.amount, 0)) AS total
-       FROM other_bill ob
-       WHERE ob.client_id IS NOT NULL
-         AND LOWER(COALESCE(ob.kind, '')) = 'client'
+      SELECT ob.client_id,
+             ob.bill_date::date AS entry_date,
+             COALESCE(ob.amount, 0) AS total
+      FROM other_bill ob
+      WHERE ob.client_id IS NOT NULL
+        AND LOWER(COALESCE(ob.kind, '')) = 'client'
 
-       UNION ALL
+      UNION ALL
 
-       SELECT pc.client_id,
-              tx.transaction_date::date AS entry_date,
-              ABS(COALESCE(pc.processing_total, 0)) AS total
-       FROM processing_calculation pc
+      SELECT pc.client_id,
+             tx.transaction_date::date AS entry_date,
+             COALESCE(pc.processing_total, 0) AS total
+      FROM processing_calculation pc
        LEFT JOIN transaction_details tx ON tx.id = pc.id
        WHERE pc.client_id IS NOT NULL
 

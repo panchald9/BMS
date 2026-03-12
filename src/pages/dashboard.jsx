@@ -56,6 +56,14 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeSignedTotal(amount, total) {
+  const amountNum = toNumber(amount);
+  const totalNum = toNumber(total);
+  if (amountNum === 0 || totalNum === 0) return totalNum;
+  if (Math.sign(amountNum) === Math.sign(totalNum)) return totalNum;
+  return Math.abs(totalNum) * Math.sign(amountNum);
+}
+
 function money(value) {
   return `$${toNumber(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -143,13 +151,13 @@ export default function DashboardPage() {
     for (const row of bills) {
       const dateISO = asISO(row.bill_date);
       if (dateISO && dateISO >= monthStartISO) {
-        totalBillsAmount += toNumber(row.total || toNumber(row.amount) * toNumber(row.rate));
+        totalBillsAmount += normalizeSignedTotal(row.amount, row.total || toNumber(row.amount) * toNumber(row.rate));
       }
     }
     for (const row of clientOtherBills) {
       const dateISO = asISO(row.bill_date);
       if (dateISO && dateISO >= monthStartISO) {
-        totalBillsAmount += toNumber(row.total || row.amount);
+        totalBillsAmount += normalizeSignedTotal(row.amount, row.total || row.amount);
       }
     }
 
@@ -157,7 +165,7 @@ export default function DashboardPage() {
     for (const row of agentBills) {
       const dateISO = asISO(row.bill_date);
       if (dateISO && dateISO >= monthStartISO) {
-        totalClaimerPayments += toNumber(row.total || toNumber(row.amount) * toNumber(row.rate));
+        totalClaimerPayments += normalizeSignedTotal(row.amount, row.total || toNumber(row.amount) * toNumber(row.rate));
       }
     }
 

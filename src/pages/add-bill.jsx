@@ -327,6 +327,7 @@ export default function AddBillPage() {
   }
 
   const [rows, setRows] = useState(demoClaimRows)
+  const [tableSearch, setTableSearch] = useState("")
 
   const [agentBillRows, setAgentBillRows] = useState(() =>
     demoClaimerCalculatedRows.map(row => ({
@@ -801,6 +802,29 @@ export default function AddBillPage() {
   const billTableGridCols = isAgentBillTab
     ? "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px]"
     : "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px]"
+  const filteredRows = useMemo(() => {
+    const q = tableSearch.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((row) =>
+      [
+        formatDateDDMMYYYY(normalizeDateValue(row.date)),
+        row.group,
+        row.client,
+        row.agent,
+        row.claimer,
+        row.bank,
+        row.source,
+        row.comment,
+        row.amount,
+        row.rate,
+        row.total,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    )
+  }, [rows, tableSearch])
 
   function rowsForTab(t) {
     if (t === "Depo Bills") return []
@@ -1204,6 +1228,19 @@ export default function AddBillPage() {
 
               <Separator className="my-4" />
 
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="text-xs text-muted-foreground">
+                  Search bills in the current tab.
+                </div>
+                <Input
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  placeholder="Search date, group, client, agent, bank, amount..."
+                  className="h-11 w-full md:max-w-md"
+                  data-testid="input-bills-search"
+                />
+              </div>
+
               {isClaimFormOpen ? (
                 <div className="rounded-2xl border bg-white/70 p-5 shadow-sm" data-testid="card-new-claim-bill">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1481,7 +1518,7 @@ export default function AddBillPage() {
                         <div className="text-right pr-4">Total</div>
                         <div className="text-center">Action</div>
                       </div>
-                      {rows.map((r, idx) => (
+                      {filteredRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
@@ -1524,7 +1561,7 @@ export default function AddBillPage() {
                         <div className="text-right pr-4">Total</div>
                         <div className="text-center">Action</div>
                       </div>
-                      {rows.map((r, idx) => (
+                      {filteredRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
@@ -1571,7 +1608,7 @@ export default function AddBillPage() {
                         {!isAgentBillTab ? <div className="text-center" data-testid="th-action">Action</div> : null}
                       </div>
 
-                      {rows.map((r, idx) => (
+                      {filteredRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
@@ -1633,16 +1670,16 @@ export default function AddBillPage() {
                   )}
                 </div>
 
-                {!rows.length && (
+                {!filteredRows.length && (
                   <div className="border-t bg-white px-3 py-10 text-center" data-testid="empty-bills">
                     <div className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-muted" aria-hidden>
                       <BadgeDollarSign className="h-5 w-5" />
                     </div>
                     <div className="mt-3 text-sm font-semibold" data-testid="text-empty-bills-title">
-                      No bills yet
+                      {rows.length ? "No matching bills" : "No bills yet"}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground" data-testid="text-empty-bills-hint">
-                      Use "New Claim Bill" to add your first bill.
+                      {rows.length ? 'Try a different search term.' : 'Use "New Claim Bill" to add your first bill.'}
                     </div>
                   </div>
                 )}
