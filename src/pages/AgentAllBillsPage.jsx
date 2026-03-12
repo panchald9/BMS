@@ -461,6 +461,10 @@ export default function AgentAllBillsPage() {
                     <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Group, client, source, bank, comment..." className="mt-1 h-11" />
                   </div>
                 </div>
+                <div className="text-right">
+                  <div className="text-lg text-muted-foreground">Grand Total</div>
+                  <div className={`text-2xl w-50 font-semibold ${amountTone(totals.grandTotal)}`}>{money(totals.grandTotal)}</div>
+                </div>
               </div>
             </Card>
 
