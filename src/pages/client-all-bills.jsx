@@ -50,6 +50,14 @@ const asISO = (v) => {
   return m ? m[1] : "";
 };
 
+const normalizeSignedTotal = (amount, total) => {
+  const amountNum = num(amount);
+  const totalNum = num(total);
+  if (amountNum === 0 || totalNum === 0) return totalNum;
+  if (Math.sign(amountNum) === Math.sign(totalNum)) return totalNum;
+  return Math.abs(totalNum) * Math.sign(amountNum);
+};
+
 function mapRows(data) {
   const claimRows = (data.claimBills || []).map((x) => ({
     type: "Claim Bills",
@@ -59,7 +67,7 @@ function mapRows(data) {
     bank: x.bank_name || "-",
     amountUsd: num(x.amount),
     rate: num(x.rate),
-    totalInr: num(x.total),
+    totalInr: normalizeSignedTotal(x.amount, x.total),
   }));
 
   const depoRows = (data.depoBills || []).map((x) => ({
@@ -70,7 +78,7 @@ function mapRows(data) {
     bank: x.bank_name || "-",
     amountUsd: num(x.amount),
     rate: num(x.rate),
-    totalInr: num(x.total),
+    totalInr: normalizeSignedTotal(x.amount, x.total),
   }));
 
   const otherRows = (data.otherBills || []).map((x) => ({
@@ -80,7 +88,7 @@ function mapRows(data) {
     client: x.client_name || "-",
     amountUsd: num(x.amount),
     rate: 0,
-    totalInr: num(x.total),
+    totalInr: normalizeSignedTotal(x.amount, x.total),
   }));
 
   const processingRows = (data.processingBills || []).map((x) => ({
@@ -92,7 +100,7 @@ function mapRows(data) {
     amountUsd: num(x.amount),
     pct: num(x.processing_percent),
     rate: num(x.dollar_rate),
-    totalInr: num(x.total),
+    totalInr: normalizeSignedTotal(x.amount, x.total),
   }));
 
   const paymentRows = (data.paymentBills || []).map((x) => ({
@@ -104,7 +112,7 @@ function mapRows(data) {
     amountUsd: num(x.amount),
     pct: num(x.processing_percent),
     rate: num(x.dollar_rate),
-    totalInr: num(x.total),
+    totalInr: normalizeSignedTotal(x.amount, x.total),
   }));
 
   return [...claimRows, ...depoRows, ...otherRows, ...processingRows, ...paymentRows].sort((a, b) =>

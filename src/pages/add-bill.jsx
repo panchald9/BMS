@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import { useLocation } from "wouter"
 import {
   BadgeDollarSign,
+  Check,
+  ChevronDown,
   Download,
   Plus,
   Receipt,
@@ -78,6 +80,10 @@ function formatMoney(n, suffix) {
   return `${n.toFixed(2)}${suffix}`
 }
 
+function cn(...classes) {
+  return classes.filter(Boolean).join(" ")
+}
+
 function hasSameRateValue(group) {
   if (!group) return false
   const v = group.sameRate
@@ -121,6 +127,129 @@ function TabButton({ active, label, onClick, testId }) {
     >
       {label}
     </button>
+  )
+}
+
+function SearchableSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  searchPlaceholder,
+  emptyText,
+  className,
+  disabled = false,
+}) {
+  const rootRef = useRef(null)
+  const inputRef = useRef(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const selectedOption = options.find((option) => String(option.value) === String(value))
+  const hasOptions = options.length > 0
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return options
+    return options.filter((option) => option.label.toLowerCase().includes(normalizedQuery))
+  }, [options, query])
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false)
+        setQuery("")
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setOpen(false)
+        setQuery("")
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("keydown", handleEscape)
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("keydown", handleEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className={cn("relative mt-1", className)}>
+      <div className="flex h-11 w-full items-center rounded-xl border border-violet-400/70 bg-white px-3 shadow-sm">
+        <Input
+          ref={inputRef}
+          value={open ? query : selectedOption?.label || ""}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            if (!open) setOpen(true)
+          }}
+          onFocus={() => {
+            setOpen(true)
+            setQuery("")
+          }}
+          placeholder={placeholder}
+          className="h-full w-full border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+          disabled={disabled || !hasOptions}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (disabled || !hasOptions) return
+            setOpen((prev) => {
+              const nextOpen = !prev
+              if (nextOpen) {
+                setQuery("")
+                setTimeout(() => inputRef.current?.focus(), 0)
+              } else {
+                setQuery("")
+              }
+              return nextOpen
+            })
+          }}
+          className="ml-2"
+          disabled={disabled || !hasOptions}
+        >
+          <ChevronDown className="h-4 w-4 opacity-60" />
+        </button>
+      </div>
+      {open ? (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border bg-white p-1 shadow-md">
+          <div className="max-h-56 overflow-y-auto rounded-lg bg-violet-100/40 py-1">
+          {filteredOptions.length ? (
+            filteredOptions.map((option) => {
+              const optionValue = String(option.value)
+              return (
+                <button
+                  key={optionValue}
+                  type="button"
+                  onClick={() => {
+                    onValueChange(optionValue)
+                    setOpen(false)
+                    setQuery("")
+                  }}
+                  className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-violet-200/40"
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      String(value) === optionValue ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              )
+            })
+          ) : (
+            <div className="px-3 py-2 text-xs text-muted-foreground">{emptyText}</div>
+          )}
+        </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -1095,14 +1224,17 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Claim Group Name</Label>
-                      <Select value={claimGroupId} onValueChange={(v) => { setClaimGroupId(v); setClaimBankId("") }}>
-                        <SelectTrigger className="soft-ring mt-1 h-11">
-                          <SelectValue placeholder={claimGroups.length ? "Select claim group" : "No claim groups"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {claimGroups.length ? claimGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No claim groups available</SelectItem>}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={claimGroupId}
+                        onValueChange={(v) => {
+                          setClaimGroupId(v)
+                          setClaimBankId("")
+                        }}
+                        options={claimGroups.map((g) => ({ value: g.id, label: g.name }))}
+                        placeholder={claimGroups.length ? "Select claim group" : "No claim groups"}
+                        searchPlaceholder="Search claim group..."
+                        emptyText="No claim groups found."
+                      />
                     </div>
                     {needsBankSelect ? (
                       <div>
@@ -1128,10 +1260,14 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Agent</Label>
-                      <Select value={claimAgentId} onValueChange={setClaimAgentId}>
-                        <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select claimer agent" /></SelectTrigger>
-                        <SelectContent>{claimerAgents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={claimAgentId}
+                        onValueChange={setClaimAgentId}
+                        options={claimerAgents.map((a) => ({ value: a.id, label: a.name }))}
+                        placeholder={claimerAgents.length ? "Select claimer agent" : "No agents"}
+                        searchPlaceholder="Search agent..."
+                        emptyText="No agent found."
+                      />
                     </div>
                     <div>
                       <Label className="text-sm">Claim Amount</Label>
@@ -1171,14 +1307,17 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Depo Group Name</Label>
-                      <Select value={depoGroupId} onValueChange={(v) => { setDepoGroupId(v); setDepoBankId("") }}>
-                        <SelectTrigger className="soft-ring mt-1 h-11">
-                          <SelectValue placeholder={depoGroups.length ? "Select depo group" : "No depo groups"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {depoGroups.length ? depoGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No depo groups available</SelectItem>}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={depoGroupId}
+                        onValueChange={(v) => {
+                          setDepoGroupId(v)
+                          setDepoBankId("")
+                        }}
+                        options={depoGroups.map((g) => ({ value: g.id, label: g.name }))}
+                        placeholder={depoGroups.length ? "Select depo group" : "No depo groups"}
+                        searchPlaceholder="Search depo group..."
+                        emptyText="No depo groups found."
+                      />
                     </div>
                     {depoNeedsBankSelect ? (
                       <div>
@@ -1204,10 +1343,14 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Agent</Label>
-                      <Select value={depoAgentId} onValueChange={setDepoAgentId}>
-                        <SelectTrigger className="soft-ring mt-1 h-11"><SelectValue placeholder="Select depositer agent" /></SelectTrigger>
-                        <SelectContent>{depositerAgents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={depoAgentId}
+                        onValueChange={setDepoAgentId}
+                        options={depositerAgents.map((a) => ({ value: a.id, label: a.name }))}
+                        placeholder={depositerAgents.length ? "Select depositer agent" : "No agents"}
+                        searchPlaceholder="Search agent..."
+                        emptyText="No agent found."
+                      />
                     </div>
                     <div>
                       <Label className="text-sm">Depo Amount</Label>
@@ -1247,14 +1390,14 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Payment Group</Label>
-                      <Select value={clientOtherGroupId} onValueChange={setClientOtherGroupId}>
-                        <SelectTrigger className="soft-ring mt-1 h-11">
-                          <SelectValue placeholder={paymentGroups.length ? "Select payment group" : "No payment groups"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {paymentGroups.length ? paymentGroups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>) : <SelectItem value="__none__" disabled>No payment groups available</SelectItem>}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={clientOtherGroupId}
+                        onValueChange={setClientOtherGroupId}
+                        options={paymentGroups.map((g) => ({ value: g.id, label: g.name }))}
+                        placeholder={paymentGroups.length ? "Select payment group" : "No payment groups"}
+                        searchPlaceholder="Search payment group..."
+                        emptyText="No payment groups found."
+                      />
                     </div>
                     <div>
                       <Label className="text-sm">Client</Label>
@@ -1298,14 +1441,14 @@ export default function AddBillPage() {
                     </div>
                     <div>
                       <Label className="text-sm">Agent</Label>
-                      <Select value={agentOtherAgentId} onValueChange={setAgentOtherAgentId}>
-                        <SelectTrigger className="soft-ring mt-1 h-11">
-                          <SelectValue placeholder={agentUsers.length ? "Select agent" : "No agents"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {agentUsers.length ? agentUsers.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>) : <SelectItem value="__none__" disabled>No agents available</SelectItem>}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={agentOtherAgentId}
+                        onValueChange={setAgentOtherAgentId}
+                        options={agentUsers.map((a) => ({ value: a.id, label: a.name }))}
+                        placeholder={agentUsers.length ? "Select agent" : "No agents"}
+                        searchPlaceholder="Search agent..."
+                        emptyText="No agents found."
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <Label className="text-sm">Comment</Label>
