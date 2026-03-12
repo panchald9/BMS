@@ -59,6 +59,12 @@ const normalizeSignedTotal = (amount, total) => {
   return Math.abs(totalNum) * Math.sign(amountNum);
 };
 
+const negativeTotal = (total) => {
+  const totalNum = num(total);
+  if (totalNum === 0) return 0;
+  return -Math.abs(totalNum);
+};
+
 function mapRows(data) {
   const claimRows = (data.claimBills || []).map((x) => ({
     type: "Claim Bills",
@@ -101,7 +107,7 @@ function mapRows(data) {
     amountUsd: num(x.amount),
     pct: num(x.processing_percent),
     rate: num(x.dollar_rate),
-    totalInr: normalizeSignedTotal(x.amount, x.total),
+    totalInr: num(x.total),
   }));
 
   const paymentRows = (data.paymentBills || []).map((x) => ({
@@ -113,7 +119,7 @@ function mapRows(data) {
     amountUsd: num(x.amount),
     pct: num(x.processing_percent),
     rate: num(x.dollar_rate),
-    totalInr: normalizeSignedTotal(x.amount, x.total),
+    totalInr: negativeTotal(x.total),
   }));
 
   return [...claimRows, ...depoRows, ...otherRows, ...processingRows, ...paymentRows].sort((a, b) =>

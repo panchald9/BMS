@@ -259,7 +259,7 @@ const getClientAllBills = async (clientId) => {
             tx.amount,
             tx.dollar_rate,
             pc.processing_percent,
-            ABS(pc.processing_total) AS total
+            COALESCE(pc.processing_total, 0) AS total
      FROM processing_calculation pc
      LEFT JOIN tx ON tx.id = pc.id
      LEFT JOIN groups g ON g.id = pc.processing_group_id
