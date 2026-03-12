@@ -122,9 +122,10 @@ function mapRows(data) {
     totalInr: negativeTotal(x.total),
   }));
 
-  return [...claimRows, ...depoRows, ...otherRows, ...processingRows, ...paymentRows].sort((a, b) =>
-    a.dateISO < b.dateISO ? 1 : -1
-  );
+  return [...claimRows, ...depoRows, ...otherRows, ...processingRows, ...paymentRows].sort((a, b) => {
+    if (a.dateISO === b.dateISO) return 0;
+    return a.dateISO < b.dateISO ? 1 : -1;
+  });
 }
 
 function BillTable({ type, rows }) {
@@ -160,7 +161,7 @@ function BillTable({ type, rows }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead className="bg-muted/30 text-xs">
+              <thead className="bg-muted/30 text-sm">
                 <tr>
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Group</th>

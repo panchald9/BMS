@@ -9,6 +9,8 @@ import { Separator } from "../components/ui/Separator"
 import { getGroups, deleteGroup as deleteGroupApi } from "../lib/api"
 import { useToast } from "../hooks/use-toast"
 
+const ROWS_PER_PAGE = 7
+
 export default function GroupsPage() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
@@ -16,6 +18,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState([])
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     getGroups()
@@ -37,6 +40,22 @@ export default function GroupsPage() {
 
     return [...filtered].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }))
   }, [groups, searchQuery])
+  const totalPages = Math.max(1, Math.ceil(visibleGroups.length / ROWS_PER_PAGE))
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE
+  const paginatedGroups = useMemo(
+    () => visibleGroups.slice(pageStart, pageStart + ROWS_PER_PAGE),
+    [pageStart, visibleGroups]
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [groups.length, searchQuery])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   function handleDelete(id, name) {
     if (!confirm(`Delete group "${name}"?`)) return
@@ -121,7 +140,7 @@ export default function GroupsPage() {
                     Loading groups...
                   </div>
                 ) : visibleGroups.length ? (
-                  visibleGroups.map((g) => (
+                  paginatedGroups.map((g) => (
                     <div
                       key={g.id}
                       className="group rounded-2xl border bg-white/70 p-4 transition hover:bg-white/90"
@@ -185,6 +204,36 @@ export default function GroupsPage() {
                   </div>
                 )}
               </div>
+              {!loading && visibleGroups.length > ROWS_PER_PAGE ? (
+                <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+                  <div className="text-muted-foreground">
+                    Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, visibleGroups.length)} of {visibleGroups.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="min-w-20 text-center text-muted-foreground">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </div>
         </div>

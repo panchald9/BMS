@@ -10,6 +10,8 @@ import { Label } from "../components/ui/label";
 import { Separator } from "../components/ui/Separator";
 import { createBank, deleteBank, getBanks, updateBank } from "../lib/api";
 
+const ROWS_PER_PAGE = 8;
+
 export default function BanksPage() {
   const [, setLocation] = useLocation();
 
@@ -20,8 +22,15 @@ export default function BanksPage() {
   const [bankName, setBankName] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editingValue, setEditingValue] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const canAdd = useMemo(() => bankName.trim().length > 0, [bankName]);
+  const totalPages = Math.max(1, Math.ceil(banks.length / ROWS_PER_PAGE));
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const paginatedBanks = useMemo(
+    () => banks.slice(pageStart, pageStart + ROWS_PER_PAGE),
+    [banks, pageStart]
+  );
 
   useEffect(() => {
     async function loadBanks() {
@@ -39,6 +48,16 @@ export default function BanksPage() {
 
     loadBanks();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [banks.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   function startEdit(bank) {
     setEditingId(bank.id);
@@ -155,7 +174,7 @@ export default function BanksPage() {
                     Loading banks...
                   </div>
                 ) : banks.length ? (
-                  banks.map(b => {
+                  paginatedBanks.map(b => {
                     const isEditing = editingId === b.id;
                     return (
                       <div key={b.id} className="rounded-2xl border bg-white/70 p-3 sm:p-4">
@@ -203,6 +222,36 @@ export default function BanksPage() {
                   </div>
                 )}
               </div>
+              {!loading && banks.length > ROWS_PER_PAGE ? (
+                <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+                  <div className="text-muted-foreground">
+                    Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, banks.length)} of {banks.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="min-w-20 text-center text-muted-foreground">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </div>
         </div>

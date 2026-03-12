@@ -57,6 +57,7 @@ import {
 const TABS = ["Claim Bills", "Depo Bills", "Client Other Bill", "Agent Bill", "Agent Other Bill"]
 
 const MOCK_AGENTS = []
+const ROWS_PER_PAGE = 7
 
 function uid() {
   return Math.random().toString(16).slice(2, 10)
@@ -78,6 +79,17 @@ function isNumberValue(v) {
 
 function formatMoney(n, suffix) {
   return `${n.toFixed(2)}${suffix}`
+}
+
+function amountTone(n) {
+  return Number(n || 0) < 0 ? "text-red-600" : "text-emerald-700"
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  const parsed = Number(String(value).replace(/[^\d.-]/g, ""))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function cn(...classes) {
@@ -244,7 +256,7 @@ function SearchableSelect({
               )
             })
           ) : (
-            <div className="px-3 py-2 text-xs text-muted-foreground">{emptyText}</div>
+            <div className="px-3 py-2 text-sm text-muted-foreground">{emptyText}</div>
           )}
         </div>
         </div>
@@ -328,6 +340,7 @@ export default function AddBillPage() {
 
   const [rows, setRows] = useState(demoClaimRows)
   const [tableSearch, setTableSearch] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [agentBillRows, setAgentBillRows] = useState(() =>
     demoClaimerCalculatedRows.map(row => ({
@@ -801,7 +814,7 @@ export default function AddBillPage() {
   const isAgentBillTab = tab === "Agent Bill"
   const billTableGridCols = isAgentBillTab
     ? "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px]"
-    : "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_60px_90px_70px]"
+    : "grid-cols-[90px_1.5fr_1fr_1fr_80px_80px_90px_70px_90px_70px]"
   const filteredRows = useMemo(() => {
     const q = tableSearch.trim().toLowerCase()
     if (!q) return rows
@@ -825,6 +838,30 @@ export default function AddBillPage() {
         .includes(q)
     )
   }, [rows, tableSearch])
+  const signedTotalForRow = useMemo(
+    () => (row) => {
+      const total = toNumber(row?.total)
+      return isAgentBillTab ? -Math.abs(total) : total
+    },
+    [isAgentBillTab]
+  )
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / ROWS_PER_PAGE))
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE
+  const paginatedRows = filteredRows.slice(pageStart, pageStart + ROWS_PER_PAGE)
+  const currentTabTotal = useMemo(
+    () => filteredRows.reduce((sum, row) => sum + signedTotalForRow(row), 0),
+    [filteredRows, signedTotalForRow]
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [tab, tableSearch, rows.length])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   function rowsForTab(t) {
     if (t === "Depo Bills") return []
@@ -1055,7 +1092,7 @@ export default function AddBillPage() {
                     <div className="text-sm font-semibold" data-testid="text-bills-tabs-title">
                       Bills
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground" data-testid="text-bills-tabs-hint">
+                    <div className="mt-0.5 text-sm text-muted-foreground" data-testid="text-bills-tabs-hint">
                       Switch bill type to view the table.
                     </div>
                   </div>
@@ -1229,7 +1266,7 @@ export default function AddBillPage() {
               <Separator className="my-4" />
 
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   Search bills in the current tab.
                 </div>
                 <Input
@@ -1246,7 +1283,7 @@ export default function AddBillPage() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="text-sm font-semibold">{editingBillSource === "Claim" ? "Edit Claim Bill" : "New Claim Bill"}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
+                      <div className="mt-1 text-sm text-muted-foreground">Fill details below.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeClaimForm}><X className="h-4 w-4" /> Cancel</Button>
@@ -1287,7 +1324,7 @@ export default function AddBillPage() {
                       </div>
                     ) : (
                       <div className="rounded-2xl border bg-muted/20 p-4">
-                        <div className="text-xs font-medium text-muted-foreground">Bank</div>
+                        <div className="text-sm font-medium text-muted-foreground">Bank</div>
                         <div className="mt-1 text-sm">{selectedClaimGroup ? "Not required (same rate)" : "Select a group first"}</div>
                       </div>
                     )}
@@ -1316,7 +1353,7 @@ export default function AddBillPage() {
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
-                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="text-sm font-medium text-emerald-900/80">Total Amount</div>
                         <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(computedTotal, " ₹")}</div>
                       </div>
                     </div>
@@ -1329,7 +1366,7 @@ export default function AddBillPage() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="text-sm font-semibold">{editingBillSource === "Depo" ? "Edit Depo Bill" : "New Depo Bill"}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">Fill details below.</div>
+                      <div className="mt-1 text-sm text-muted-foreground">Fill details below.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeDepoForm}><X className="h-4 w-4" /> Cancel</Button>
@@ -1370,7 +1407,7 @@ export default function AddBillPage() {
                       </div>
                     ) : (
                       <div className="rounded-2xl border bg-muted/20 p-4">
-                        <div className="text-xs font-medium text-muted-foreground">Bank</div>
+                        <div className="text-sm font-medium text-muted-foreground">Bank</div>
                         <div className="mt-1 text-sm">{selectedDepoGroup ? "Not required (same rate)" : "Select a group first"}</div>
                       </div>
                     )}
@@ -1399,7 +1436,7 @@ export default function AddBillPage() {
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
-                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="text-sm font-medium text-emerald-900/80">Total Amount</div>
                         <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(depoTotal, " ₹")}</div>
                       </div>
                     </div>
@@ -1412,7 +1449,7 @@ export default function AddBillPage() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="text-sm font-semibold">{editingOtherKind === "client" ? "Edit Client Other Bill" : "New Client Other Bill"}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">Select group and enter amount.</div>
+                      <div className="mt-1 text-sm text-muted-foreground">Select group and enter amount.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeClientOtherForm}><X className="h-4 w-4" /> Cancel</Button>
@@ -1450,7 +1487,7 @@ export default function AddBillPage() {
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
-                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="text-sm font-medium text-emerald-900/80">Total Amount</div>
                         <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(clientOtherTotal, " ₹")}</div>
                       </div>
                     </div>
@@ -1463,7 +1500,7 @@ export default function AddBillPage() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="text-sm font-semibold">{editingOtherKind === "agent" ? "Edit Agent Other Bill" : "New Agent Other Bill"}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">Select agent and enter amount.</div>
+                      <div className="mt-1 text-sm text-muted-foreground">Select agent and enter amount.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="secondary" onClick={closeAgentOtherForm}><X className="h-4 w-4" /> Cancel</Button>
@@ -1497,7 +1534,7 @@ export default function AddBillPage() {
                     </div>
                     <div className="md:col-span-2">
                       <div className="rounded-2xl border bg-emerald-50 p-4">
-                        <div className="text-xs font-medium text-emerald-900/80">Total Amount</div>
+                        <div className="text-sm font-medium text-emerald-900/80">Total Amount</div>
                         <div className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">{formatMoney(agentOtherTotal, " ₹")}</div>
                       </div>
                     </div>
@@ -1509,7 +1546,7 @@ export default function AddBillPage() {
                 <div className="overflow-x-auto">
                   {tab === "Client Other Bill" ? (
                     <div className="min-w-full">
-                      <div className="grid grid-cols-[90px_1fr_1fr_1.5fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                      <div className="grid grid-cols-[90px_1fr_1fr_1.5fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
                         <div className="text-center">Date</div>
                         <div className="text-left pl-4">Group</div>
                         <div className="text-left pl-4">Client</div>
@@ -1518,7 +1555,7 @@ export default function AddBillPage() {
                         <div className="text-right pr-4">Total</div>
                         <div className="text-center">Action</div>
                       </div>
-                      {filteredRows.map((r, idx) => (
+                      {paginatedRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
@@ -1526,12 +1563,12 @@ export default function AddBillPage() {
                             (idx % 2 === 0 ? "" : "bg-muted/5")
                           }
                         >
-                          <div className="text-xs text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
-                          <div className="truncate text-xs text-left pl-4">{r.group || "-"}</div>
-                          <div className="truncate text-xs text-left pl-4">{r.client || "-"}</div>
-                          <div className="truncate text-xs text-left pl-4">{r.comment || "-"}</div>
-                          <div className="text-right text-xs tabular-nums pr-4">{r.amount}</div>
-                          <div className="text-right text-xs tabular-nums pr-4">{r.total}</div>
+                          <div className="text-sm text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
+                          <div className="truncate text-sm text-left pl-4">{r.group || "-"}</div>
+                          <div className="truncate text-sm text-left pl-4">{r.client || "-"}</div>
+                          <div className="truncate text-sm text-left pl-4">{r.comment || "-"}</div>
+                          <div className="text-right text-sm tabular-nums pr-4">{r.amount}</div>
+                          <div className={`text-right text-sm tabular-nums pr-4 ${amountTone(toNumber(r.total))}`}>{r.total}</div>
                           <div className="flex items-center justify-center gap-2">
                             <button
                               className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
@@ -1553,7 +1590,7 @@ export default function AddBillPage() {
                     </div>
                   ) : tab === "Agent Other Bill" ? (
                     <div className="min-w-full">
-                      <div className="grid grid-cols-[90px_1.5fr_2fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                      <div className="grid grid-cols-[90px_1.5fr_2fr_100px_100px_70px] gap-2 border-b bg-white px-3 py-3 text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
                         <div className="text-center">Date</div>
                         <div className="text-left pl-4">Agent</div>
                         <div className="text-left pl-4">Comment</div>
@@ -1561,7 +1598,7 @@ export default function AddBillPage() {
                         <div className="text-right pr-4">Total</div>
                         <div className="text-center">Action</div>
                       </div>
-                      {filteredRows.map((r, idx) => (
+                      {paginatedRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
@@ -1569,11 +1606,11 @@ export default function AddBillPage() {
                             (idx % 2 === 0 ? "" : "bg-muted/5")
                           }
                         >
-                          <div className="text-xs text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
-                          <div className="truncate text-xs text-left pl-4">{r.agent || r.claimer || "-"}</div>
-                          <div className="truncate text-xs text-left pl-4">{r.comment || "-"}</div>
-                          <div className="text-right text-xs tabular-nums pr-4">{r.amount}</div>
-                          <div className="text-right text-xs tabular-nums pr-4">{r.total}</div>
+                          <div className="text-sm text-foreground text-center">{formatDateDDMMYYYY(normalizeDateValue(r.date))}</div>
+                          <div className="truncate text-sm text-left pl-4">{r.agent || r.claimer || "-"}</div>
+                          <div className="truncate text-sm text-left pl-4">{r.comment || "-"}</div>
+                          <div className="text-right text-sm tabular-nums pr-4">{r.amount}</div>
+                          <div className={`text-right text-sm tabular-nums pr-4 ${amountTone(toNumber(r.total))}`}>{r.total}</div>
                           <div className="flex items-center justify-center gap-2">
                             <button
                               className="grid h-8 w-8 place-items-center rounded-lg border bg-white text-muted-foreground transition hover:bg-muted/30 hover:text-foreground"
@@ -1595,7 +1632,7 @@ export default function AddBillPage() {
                     </div>
                   ) : (
                     <div className="min-w-full">
-                      <div className={`grid ${billTableGridCols} gap-2 border-b bg-white px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80`}>
+                      <div className={`grid ${billTableGridCols} gap-2 border-b bg-white px-3 py-3 text-sm font-bold uppercase tracking-wider text-muted-foreground/80`}>
                         <div className="text-center" data-testid="th-date">Date</div>
                         <div className="text-left pl-4" data-testid="th-group">Group</div>
                         <div className="text-left pl-4" data-testid="th-client">Client</div>
@@ -1608,40 +1645,43 @@ export default function AddBillPage() {
                         {!isAgentBillTab ? <div className="text-center" data-testid="th-action">Action</div> : null}
                       </div>
 
-                      {filteredRows.map((r, idx) => (
+                      {paginatedRows.map((r, idx) => (
                         <div
                           key={r.id}
                           className={
-                            `grid ${billTableGridCols} items-center gap-2 border-t bg-white px-3 py-3 text-sm ` +
+                            `grid ${billTableGridCols} items-center gap-2 border-t bg-white px-3 py-3 text-lg ` +
                             (idx % 2 === 0 ? "" : "bg-muted/5")
                           }
                           data-testid={`row-bill-${r.id}`}
                         >
-                          <div className="text-xs text-foreground text-center" data-testid={`cell-date-${r.id}`}>
+                          <div className="text-sm text-foreground text-center" data-testid={`cell-date-${r.id}`}>
                             {formatDateDDMMYYYY(normalizeDateValue(r.date))}
                           </div>
-                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-group-${r.id}`}>
+                          <div className="truncate text-sm text-left pl-4" data-testid={`cell-group-${r.id}`}>
                             {r.group}
                           </div>
-                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-client-${r.id}`}>
+                          <div className="truncate text-sm text-left pl-4" data-testid={`cell-client-${r.id}`}>
                             {r.client}
                           </div>
-                          <div className="truncate text-xs text-left pl-4" data-testid={`cell-claimer-${r.id}`}>
+                          <div className="truncate text-sm text-left pl-4" data-testid={`cell-claimer-${r.id}`}>
                             {r.claimer || r.agent || "-"}
                           </div>
-                          <div className="truncate text-xs text-center" data-testid={`cell-source-${r.id}`}>
+                          <div className="truncate text-sm text-center" data-testid={`cell-source-${r.id}`}>
                             {r.source || "-"}
                           </div>
-                          <div className="truncate text-xs text-center" data-testid={`cell-bank-${r.id}`}>
+                          <div className="truncate text-sm text-center" data-testid={`cell-bank-${r.id}`}>
                             {r.bank || "-"}
                           </div>
-                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-amount-${r.id}`}>
+                          <div className="text-right text-sm tabular-nums pr-4" data-testid={`cell-amount-${r.id}`}>
                             {r.amount}
                           </div>
-                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-rate-${r.id}`}>
+                          <div className="text-right text-sm tabular-nums pr-4" data-testid={`cell-rate-${r.id}`}>
                             {r.rate}
                           </div>
-                          <div className="text-right text-xs tabular-nums pr-4" data-testid={`cell-total-${r.id}`}>
+                          <div
+                            className={`text-right text-sm tabular-nums pr-4 ${amountTone(signedTotalForRow(r))}`}
+                            data-testid={`cell-total-${r.id}`}
+                          >
                             {isAgentBillTab ? `-${r.total}` : r.total}
                           </div>
                           {!isAgentBillTab ? (
@@ -1684,6 +1724,36 @@ export default function AddBillPage() {
                   </div>
                 )}
               </div>
+              {filteredRows.length > ROWS_PER_PAGE ? (
+                <div className="mt-3 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+                  <div className="text-muted-foreground">
+                    Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, filteredRows.length)} of {filteredRows.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="min-w-20 text-center text-muted-foreground">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </div>
         </div>

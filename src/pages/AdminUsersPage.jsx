@@ -9,6 +9,8 @@ import { Card } from "../components/ui/Card"
 import { Separator } from "../components/ui/Separator"
 import { useToast } from "../hooks/use-toast"
 
+const ROWS_PER_PAGE = 6
+
 function parseWorkTypes(worktype) {
   if (!worktype || typeof worktype !== "string") return []
   return worktype.split(",").map((w) => w.trim()).filter(Boolean)
@@ -34,6 +36,7 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const canEditOrDelete = useMemo(() => users.length > 0, [users.length])
   const visibleUsers = useMemo(() => {
@@ -48,6 +51,12 @@ export default function AdminUsersPage() {
 
     return [...filtered].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
   }, [users, searchQuery])
+  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / ROWS_PER_PAGE))
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE
+  const paginatedUsers = useMemo(
+    () => visibleUsers.slice(pageStart, pageStart + ROWS_PER_PAGE),
+    [pageStart, visibleUsers]
+  )
 
   async function fetchUsers() {
     const token = localStorage.getItem("authToken")
@@ -74,6 +83,16 @@ export default function AdminUsersPage() {
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, users.length])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   async function handleDeleteUser(user) {
     const token = localStorage.getItem("authToken")
@@ -169,7 +188,7 @@ export default function AdminUsersPage() {
                     Loading users...
                   </div>
                 ) : visibleUsers.length ? (
-                  visibleUsers.map((u) => (
+                  paginatedUsers.map((u) => (
                     <div
                       key={u.id}
                       className="group rounded-2xl border bg-white/70 p-4 transition hover:bg-white/90"
@@ -236,6 +255,36 @@ export default function AdminUsersPage() {
                   </div>
                 )}
               </div>
+              {!isLoading && visibleUsers.length > ROWS_PER_PAGE ? (
+                <div className="mt-4 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+                  <div className="text-muted-foreground">
+                    Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, visibleUsers.length)} of {visibleUsers.length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="min-w-20 text-center text-muted-foreground">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </div>
         </div>
