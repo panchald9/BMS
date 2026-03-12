@@ -42,9 +42,25 @@ const asISO = (v) => {
 
 const emptyData = { agentBills: [], agentOtherBills: [] };
 const ALL_AGENTS_VALUE = "all";
+const ROWS_PER_PAGE = 6;
 
 function BillsTable({ rows }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const total = rows.reduce((acc, r) => acc + num(r.totalInr), 0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const paginatedRows = rows.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rows.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   return (
     <div>
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -72,8 +88,8 @@ function BillsTable({ rows }) {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {rows.map((r, idx) => (
-                  <tr key={`b-${idx}`} className="border-t">
+                {paginatedRows.map((r, idx) => (
+                  <tr key={`b-${pageStart + idx}`} className="border-t">
                     <td className="px-3 py-2">{r.dateISO ? formatDateDDMMYYYY(r.dateISO) : "-"}</td>
                     <td className="px-3 py-2">{r.group || "-"}</td>
                     <td className="px-3 py-2">{r.client || "-"}</td>
@@ -89,6 +105,36 @@ function BillsTable({ rows }) {
           </div>
         )}
       </div>
+      {rows.length > ROWS_PER_PAGE ? (
+        <div className="mt-3 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="text-muted-foreground">
+            Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, rows.length)} of {rows.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="min-w-20 text-center text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 flex justify-end text-sm font-semibold">
         <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>
@@ -97,7 +143,22 @@ function BillsTable({ rows }) {
 }
 
 function OtherTable({ rows }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const total = rows.reduce((acc, r) => acc + num(r.totalInr), 0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const paginatedRows = rows.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rows.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   return (
     <div>
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -121,8 +182,8 @@ function OtherTable({ rows }) {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {rows.map((r, idx) => (
-                  <tr key={`o-${idx}`} className="border-t">
+                {paginatedRows.map((r, idx) => (
+                  <tr key={`o-${pageStart + idx}`} className="border-t">
                     <td className="px-3 py-2">{r.dateISO ? formatDateDDMMYYYY(r.dateISO) : "-"}</td>
                     <td className="px-3 py-2">{r.comment || "-"}</td>
                     <td className="px-3 py-2 text-right">{num(r.amountInr).toFixed(2)}</td>
@@ -134,6 +195,36 @@ function OtherTable({ rows }) {
           </div>
         )}
       </div>
+      {rows.length > ROWS_PER_PAGE ? (
+        <div className="mt-3 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="text-muted-foreground">
+            Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, rows.length)} of {rows.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="min-w-20 text-center text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 flex justify-end text-sm font-semibold">
         <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>

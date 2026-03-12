@@ -23,6 +23,7 @@ import { useToast } from "../hooks/use-toast";
 
 const BILL_TYPES = ["Claim Bills", "Depo Bills", "Other Bills", "Processing Bills", "Payment Bills"];
 const ALL_CLIENTS_VALUE = "all";
+const ROWS_PER_PAGE = 6;
 
 const emptySections = {
   claimBills: [],
@@ -121,9 +122,23 @@ function mapRows(data) {
 }
 
 function BillTable({ type, rows }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const total = rows.reduce((acc, r) => acc + num(r.totalInr), 0);
   const isOther = type === "Other Bills";
   const isProcOrPay = type === "Processing Bills" || type === "Payment Bills";
+  const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const paginatedRows = rows.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [type, rows.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div>
@@ -152,8 +167,8 @@ function BillTable({ type, rows }) {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {rows.map((r, idx) => (
-                  <tr key={`${type}-${idx}`} className="border-t">
+                {paginatedRows.map((r, idx) => (
+                  <tr key={`${type}-${pageStart + idx}`} className="border-t">
                     <td className="px-3 py-2">{r.dateISO ? formatDateDDMMYYYY(r.dateISO) : "-"}</td>
                     <td className="px-3 py-2">{r.group || "-"}</td>
                     <td className="px-3 py-2">{r.client || "-"}</td>
@@ -177,6 +192,36 @@ function BillTable({ type, rows }) {
           </div>
         )}
       </div>
+      {rows.length > ROWS_PER_PAGE ? (
+        <div className="mt-3 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="text-muted-foreground">
+            Showing {pageStart + 1}-{Math.min(pageStart + ROWS_PER_PAGE, rows.length)} of {rows.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="min-w-20 text-center text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 flex justify-end text-sm font-semibold">
         <span className={`text-lg ${amountTone(total)}`}>Total: {money(total)}</span>
       </div>
